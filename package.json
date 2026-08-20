@@ -1,0 +1,17 @@
+{
+  "name": "design-mode",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "demo"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w demo",
+    "build": "npm run build -w demo"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
