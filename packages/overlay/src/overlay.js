@@ -54,6 +54,7 @@
   const state = {
     active: false,
     promptOpen: false,
+    picking: false,       // hover inspector stays on while the sidebar is open
     promptExpanded: false,
     draft: '',
     draftScope: 'auto',
@@ -162,8 +163,11 @@
     .tray-status { color: #9B9B9B; font-size: 10.5px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
     .tray-status button { background: none; border: none; color: #8FB2FF; padding: 0; font-size: 10.5px; }
     .toast { position: fixed; display: none; pointer-events: none; bottom: 14px; left: 14px; background: #1E1E1E; border: 1px solid #333; border-radius: 8px; padding: 8px 12px; max-width: 46vw; }
-    .kbtn { margin-left: auto; flex: none; font: 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.02em; padding: 4px 6px 3px; border-radius: 4px; border: 1px solid #3A3A3A; border-bottom-width: 2px; background: #2B2B2B; color: #9B9B9B; }
+    .hdr-btns { margin-left: auto; display: flex; align-items: center; gap: 4px; flex: none; }
+    .kbtn { flex: none; height: 20px; display: inline-flex; align-items: center; font: 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.02em; padding: 0 6px; border-radius: 4px; border: 1px solid #3A3A3A; border-bottom-width: 2px; background: #2B2B2B; color: #9B9B9B; }
     .kbtn:hover { color: #E8E8E8; border-color: #4A4A4A; }
+    .kbtn svg { width: 12px; height: 12px; display: block; }
+    .kbtn.on { color: #0C8CE9; border-color: #0C8CE9; background: rgba(12,140,233,0.15); }
     .crumbs { display: none; align-items: center; gap: 1px; border-top: 1px solid #333; background: #232323; padding: 7px 10px; white-space: nowrap; overflow-x: auto; overflow-y: hidden; font-size: 11px; scrollbar-width: none; flex: none; }
     .crumbs::-webkit-scrollbar { display: none; }
     .crumbs .sep, .crumbs .dots { color: #9B9B9B; padding: 0 2px; flex: none; }
@@ -1004,6 +1008,23 @@
 
   /* -------------------------------------------------------------- panel --- */
 
+  const PICK_ICON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5H3a.5.5 0 0 0-.5.5v3M10 2.5h3a.5.5 0 0 1 .5.5v3M6 13.5H3a.5.5 0 0 1-.5-.5v-3"/><path d="M8 8l5.5 2-2.4 1.1L10 13.5z" fill="currentColor" stroke="none"/></svg>';
+
+  // The hover inspector normally rests once something is selected; picking keeps it on
+  // so the user can re-target the open sidebar with another click.
+  const setPicking = (on) => {
+    state.picking = on;
+    if (state.pickBtn) {
+      state.pickBtn.classList.toggle('on', on);
+      state.pickBtn.setAttribute('aria-pressed', String(on));
+    }
+    if (!on) {
+      hi.style.display = 'none';
+      hiLabel.style.display = 'none';
+      state.hoverEl = null;
+    }
+  };
+
   const renderPanel = (target, keepScroll = false) => {
     const scrollTop = keepScroll ? panelScroll.scrollTop : 0;
     const fiber = findFiber(target);
@@ -1022,6 +1043,13 @@
     panelScroll.innerHTML = '';
     const title = mk('p-title');
     title.innerHTML = `<span class="name">${esc(chain[0] || target.tagName.toLowerCase())}</span><span class="tag">&lt;${esc(target.tagName.toLowerCase())}&gt;</span>`;
+    const btns = mk('hdr-btns');
+    const pickBtn = mk('kbtn' + (state.picking ? ' on' : ''), 'button');
+    pickBtn.innerHTML = PICK_ICON;
+    pickBtn.title = 'Inspect: highlight elements on hover and click to select another (sidebar stays open)';
+    pickBtn.setAttribute('aria-pressed', String(state.picking));
+    pickBtn.addEventListener('click', () => setPicking(!state.picking));
+    state.pickBtn = pickBtn;
     const escBtn = mk('kbtn', 'button');
     escBtn.textContent = 'esc';
     escBtn.title = 'Close (Esc)';
@@ -1029,7 +1057,8 @@
       closePrompt();
       showToast('Design Mode still on: click another element, or press Esc again to exit.', 4000);
     });
-    title.append(escBtn);
+    btns.append(pickBtn, escBtn);
+    title.append(btns);
     const sub = mk('p-sub');
     sub.textContent = chain.slice(1).join(' ← ');
     sub.title = chain.join(' ← ');
@@ -1140,6 +1169,7 @@
 
   const closePrompt = () => {
     state.promptOpen = false;
+    state.picking = false;
     state.selectedEl = null;
     panel.style.display = 'none';
     ring.style.display = 'none';
@@ -1149,6 +1179,7 @@
   const openPrompt = (target) => {
     state.selectedEl = target;
     state.promptOpen = true;
+    state.hoverEl = null;
     hi.style.display = 'none';
     hiLabel.style.display = 'none';
     box(target, ring, 1);
@@ -1160,7 +1191,7 @@
   const reposition = () => {
     rafPending = false;
     if (state.promptOpen && state.selectedEl && state.selectedEl.isConnected) box(state.selectedEl, ring, 1);
-    if (state.active && !state.promptOpen && state.hoverEl && state.hoverEl.isConnected) {
+    if (state.active && (!state.promptOpen || state.picking) && state.hoverEl && state.hoverEl.isConnected) {
       const r = box(state.hoverEl, hi);
       hiLabel.style.left = `${Math.max(4, r.left)}px`;
       hiLabel.style.top = `${Math.max(4, r.top - 24)}px`;
@@ -1177,7 +1208,7 @@
   /* ------------------------------------------------------------- events --- */
 
   const onMove = (e) => {
-    if (!state.active || state.promptOpen) return;
+    if (!state.active || (state.promptOpen && !state.picking)) return;
     const t = document.elementFromPoint(e.clientX, e.clientY);
     if (!t || isOurs(t) || t === document.documentElement || t === document.body) {
       hi.style.display = 'none';
@@ -1254,6 +1285,7 @@
     },
     disable() {
       state.active = false;
+      state.picking = false;
       state.hoverEl = null;
       closePrompt();
       hi.style.display = 'none';
