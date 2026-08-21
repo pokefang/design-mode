@@ -117,7 +117,8 @@
     .btn.sm { height: 22px; padding: 0 8px; font-size: 10.5px; }
     .panel { position: fixed; top: 12px; right: 12px; bottom: 12px; width: 284px; display: none; flex-direction: column; pointer-events: auto; background: #1E1E1E; border: 1px solid #333; border-radius: 10px; box-shadow: 0 16px 48px rgba(0,0,0,0.5); overflow: hidden; }
     .panel-scroll { flex: 1; overflow: auto; padding: 12px 12px 10px; }
-    .p-title { font-weight: 600; font-size: 13px; display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+    .p-title { font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 6px; min-width: 0; }
+    .p-title .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .p-title .tag { color: #9B9B9B; font-weight: 400; font-size: 11px; }
     .p-sub { color: #8FB2FF; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .p-src { color: #9B9B9B; font-size: 10.5px; margin-top: 6px; word-break: break-all; }
@@ -161,9 +162,8 @@
     .tray-status { color: #9B9B9B; font-size: 10.5px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
     .tray-status button { background: none; border: none; color: #8FB2FF; padding: 0; font-size: 10.5px; }
     .toast { position: fixed; display: none; pointer-events: none; bottom: 14px; left: 14px; background: #1E1E1E; border: 1px solid #333; border-radius: 8px; padding: 8px 12px; max-width: 46vw; }
-    .chip { position: fixed; display: none; pointer-events: auto; top: 10px; left: 50%; transform: translateX(-50%); align-items: center; gap: 10px; background: #1E1E1E; border: 1px solid #0C8CE9; border-radius: 99px; padding: 5px 7px 5px 14px; box-shadow: 0 6px 24px rgba(0,0,0,0.35); }
-    .chip .muted { color: #9B9B9B; }
-    .chip button { width: 22px; height: 22px; border-radius: 50%; border: 1px solid #3A3A3A; background: transparent; color: #E8E8E8; line-height: 1; padding: 0; }
+    .kbtn { margin-left: auto; flex: none; font: 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.02em; padding: 4px 6px 3px; border-radius: 4px; border: 1px solid #3A3A3A; border-bottom-width: 2px; background: #2B2B2B; color: #9B9B9B; }
+    .kbtn:hover { color: #E8E8E8; border-color: #4A4A4A; }
     .crumbs { display: none; align-items: center; gap: 1px; border-top: 1px solid #333; background: #232323; padding: 7px 10px; white-space: nowrap; overflow-x: auto; overflow-y: hidden; font-size: 11px; scrollbar-width: none; flex: none; }
     .crumbs::-webkit-scrollbar { display: none; }
     .crumbs .sep, .crumbs .dots { color: #9B9B9B; padding: 0 2px; flex: none; }
@@ -183,10 +183,7 @@
   const crumbs = mk('crumbs ui');
   panel.append(panelScroll, crumbs, tray);
   const toast = mk('toast ui');
-  const chip = mk('chip ui');
-  chip.innerHTML = '<span style="font-weight:600">Design Mode</span><span class="muted">click an element · Esc exits</span><button title="Exit Design Mode">&#10005;</button>';
-  chip.querySelector('button').addEventListener('click', () => api.disable());
-  shadow.append(hi, hiLabel, ring, panel, toast, chip);
+  shadow.append(hi, hiLabel, ring, panel, toast);
 
   const ensureMounted = () => { if (!host.isConnected) document.documentElement.append(host); };
   ensureMounted();
@@ -1024,7 +1021,15 @@
 
     panelScroll.innerHTML = '';
     const title = mk('p-title');
-    title.innerHTML = `<span>${esc(chain[0] || target.tagName.toLowerCase())}</span><span class="tag">&lt;${esc(target.tagName.toLowerCase())}&gt;</span>`;
+    title.innerHTML = `<span class="name">${esc(chain[0] || target.tagName.toLowerCase())}</span><span class="tag">&lt;${esc(target.tagName.toLowerCase())}&gt;</span>`;
+    const escBtn = mk('kbtn', 'button');
+    escBtn.textContent = 'esc';
+    escBtn.title = 'Close (Esc)';
+    escBtn.addEventListener('click', () => {
+      closePrompt();
+      showToast('Design Mode still on: click another element, or press Esc again to exit.', 4000);
+    });
+    title.append(escBtn);
     const sub = mk('p-sub');
     sub.textContent = chain.slice(1).join(' ← ');
     sub.title = chain.join(' ← ');
@@ -1245,7 +1250,6 @@
     enable() {
       ensureMounted();
       state.active = true;
-      chip.style.display = 'flex';
       showToast('Design Mode on. Click an element; Esc to exit.');
     },
     disable() {
@@ -1254,7 +1258,6 @@
       closePrompt();
       hi.style.display = 'none';
       hiLabel.style.display = 'none';
-      chip.style.display = 'none';
       showToast('Design Mode off.');
     },
     toggle() { state.active ? api.disable() : api.enable(); },
