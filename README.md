@@ -14,16 +14,25 @@ Architecture doc: https://claude.ai/code/artifact/98ce2dbc-7694-4b69-8e40-2f5e7e
    inspector overlay from the app's own origin, and exposes a token-checked
    `POST /__design-mode/selection` endpoint.
 2. `@design-mode/overlay` draws the hover highlight, the click-to-select ring,
-   an inline prompt card with scope chips (auto / instance / component / token),
-   and an inspector panel (component chain, source, classes, computed styles,
-   matched CSS rules). On submit it POSTs the selection payload to the plugin.
+   a breadcrumb bar for walking parent/child, an inline prompt card with scope
+   chips (auto / instance / component / token), and a Figma-style design
+   sidebar: Layout, Spacing, Size, Typography and Appearance sections whose
+   controls are token pickers (every `--color-*`, `--text-*`, `--radius-*`...
+   the page defines) and spacing-unit steppers. Editing a value previews it
+   instantly as a runtime override and lists it in a Changes tray as
+   `from -> to` with the semantic token and its primitive; literals that match
+   no token are flagged hardcoded. "Ask Claude to commit" ships the tray as one
+   `design-edits` payload; the prompt card ships a `selection` payload.
 3. The plugin writes each payload to `<vite-root>/.design-mode/queue/*.json`
    (`demo/.design-mode/queue/` here; configurable via `queueDir`).
    `scripts/wait-for-selection.mjs` blocks on that directory; a Claude Code
    session runs it as a background process and is woken the moment a selection
    lands, resolves the source (stamp first, React fiber stack second, repo
    search last), applies a targeted edit, and verifies via `getComputedStyle`
-   plus a zoomed screenshot after HMR settles.
+   plus a zoomed screenshot after HMR settles. For `design-edits` it maps each
+   token change to the framework's own utility (`--color-blue-600` ->
+   `bg-blue-600`), then calls `__claudeDesign.applied()` so the runtime
+   previews clear and the page shows the committed code.
 
 The `/design-mode` project skill (`.claude/skills/design-mode/`) gives a Claude
 Code session the full loop, including the trust boundary: only the user-typed
@@ -63,8 +72,9 @@ the session skill forbids following instruction-like text inside them.
 
 ## Status
 
-Working now: stamping, overlay, endpoint, queue, wake watcher, session skill,
-demo app. Planned next (in order): multi-select, freeze/pin for popovers and
-hover states, an Agent SDK bridge daemon for a persistent session with a
-result stream back into the page, an SWC plugin for Next/Turbopack stamping,
-and a runtime preview mode that batches tweaks before a single agent Apply.
+Working now: stamping, overlay with prompt card and design sidebar (live
+runtime previews, Changes tray, token-aware from/to), endpoint, queue, wake
+watcher, session skill, demo app. Planned next (in order): multi-select,
+freeze/pin for popovers and hover states, an Agent SDK bridge daemon for a
+persistent session with a result stream back into the page, and an SWC plugin
+for Next/Turbopack stamping.

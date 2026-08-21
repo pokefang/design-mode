@@ -38,3 +38,44 @@ is the other half of the loop.
 ## Tier 1 (an app without the plugin)
 
 Inject the overlay manually: set `window.__CDM_CONFIG = { endpoint: null }` then eval `packages/overlay/src/overlay.js` via `javascript_tool`, call `__claudeDesign.enable()`, and poll `__claudeDesign.take()` in a short watch window after each of your edits. Payloads then never leave the page; there is no queue dir and no wake watcher, so check `take()` before ending a turn.
+
+## Design-edit payloads (`kind: "design-edits"`)
+
+The sidebar lets the user edit values directly (token pickers, spacing units,
+selects). Each edit previews instantly as an inline-style override on the
+element and is listed in the Changes tray; "Ask Claude to commit" ships them as
+one payload with `targets[]`, each carrying the element context plus `edits[]`
+of `{ prop, from: { token, label, primitive }, to: { css, token, label, primitive, hardcoded } }`.
+`from`/`to` are authoritative (the element's live styles are the preview).
+
+Translate each edit into source, preferring the framework's own layer. Tailwind v4 mapping:
+
+| prop | to.token / to.label | class |
+| --- | --- | --- |
+| background-color | `--color-blue-600` | `bg-blue-600` |
+| color | `--color-white` | `text-white` |
+| border-color | `--color-slate-300` | `border-slate-300` |
+| font-size | `--text-lg` | `text-lg` |
+| font-weight | `--font-weight-semibold` | `font-semibold` |
+| font-family | `--font-mono` | `font-mono` |
+| line-height | `--leading-tight` | `leading-tight` |
+| letter-spacing | `--tracking-tight` | `tracking-tight` |
+| border-radius | `--radius-xl` / label `full` | `rounded-xl` / `rounded-full` |
+| box-shadow | `--shadow-md` / label `none` | `shadow-md` / `shadow-none` |
+| padding-inline / padding-block | label `spacing × 4` | `px-4` / `py-4` |
+| margin-inline / margin-block | label `spacing × 2` | `mx-2` / `my-2` |
+| gap | label `spacing × 6` | `gap-6` |
+| display | label `flex` / `grid` / `none` | `flex` / `grid` / `hidden` |
+| flex-direction | `column` | `flex-col` |
+| align-items / justify-content | `center` / `space-between` | `items-center` / `justify-between` |
+| text-align | `center` | `text-center` |
+| opacity | label `50%` | `opacity-50` |
+
+Replace the existing utility for that property at the mapped call site (respect
+`scope`: `instance` edits the call site, `component` the shared component,
+`token` the theme value). If `to.hardcoded` is true the user typed a literal:
+prefer the nearest token and say so, or use an arbitrary-value utility
+(`text-[15px]`) and flag it as hardcoded in your reply. After your edits land
+and HMR has applied them, call `__claudeDesign.applied()` via `javascript_tool`
+so the runtime previews clear and the page shows the real code, then `notify()`
+a one-line summary.

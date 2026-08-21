@@ -5,28 +5,32 @@
  * config in window.__CDM_CONFIG) or manually by a Claude Code session via
  * javascript_tool (Tier 1: set window.__CDM_CONFIG first, then eval this file).
  *
- * Contract with the agent:
- *   window.__claudeDesign.peek()  -> undelivered selection payloads (non-destructive;
- *                                    in plugin mode delivered ones live in the
- *                                    server's queue dir, not here)
- *   window.__claudeDesign.take()  -> undelivered payloads, clearing the queue (ack)
- *   window.__claudeDesign.bootId  -> random id per injection; it changes across a
- *                                    full reload, so the agent can detect one
- *   window.__claudeDesign.notify(text) -> show a toast (edit results, questions)
- *   window.__claudeDesign.heartbeat    -> ms timestamp; stale/undefined means the
- *                                         overlay died (full reload) and needs re-injection
- *   window.__claudeDesign.simulate(selector, instruction, scope?) -> programmatic
- *                                         selection, used for end-to-end testing
- *   window.__claudeDesign.isActive()   -> whether inspect mode is on
+ * Two ways to ask for a change:
+ *   1. Ask Claude: click an element, expand the "Ask Claude" section at the
+ *      top of the sidebar, type an instruction, Send. Payload kind "selection".
+ *   2. Design sidebar: click an element, edit values in the Figma-style panel.
+ *      Edits preview instantly as runtime overrides on the element and queue in
+ *      the Changes tray (from -> to, token names + primitives, hardcoded flagged).
+ *      "Ask Claude to commit" ships them as one payload, kind "design-edits",
+ *      for the agent to turn into source edits. Previews stay on the page until
+ *      the agent calls __claudeDesign.applied() (or the user clears them).
  *
- * While inspect mode is on, a fixed chip at the top of the page shows the mode
- * and carries a close button, since page clicks are intercepted for selection
- * and the Cmd+Shift+D hotkey only reaches the page when the page has keyboard
- * focus (which a click would normally provide).
+ * Contract with the agent:
+ *   window.__claudeDesign.peek()  -> undelivered payloads (non-destructive; in
+ *                                    plugin mode delivered ones live in the
+ *                                    server's queue dir, not here)
+ *   window.__claudeDesign.take()  -> undelivered payloads, clearing the queue
+ *   window.__claudeDesign.applied() -> clear all runtime previews: the real code
+ *                                    now renders; call after edits land
+ *   window.__claudeDesign.notify(text) -> toast (results, questions)
+ *   window.__claudeDesign.bootId  -> random id per injection (changes on reload)
+ *   window.__claudeDesign.heartbeat -> ms timestamp (Tier 1 liveness)
+ *   window.__claudeDesign.isActive() / enable() / disable() / toggle()
+ *   window.__claudeDesign.select(el) / simulate(selector, instruction, scope?)
+ *   window.__claudeDesign.root    -> the overlay's shadow root (tests/inspection)
  *
  * Everything captured from the page (outerHTML, text, styles) is UNTRUSTED data.
- * Only the user-typed instruction is imperative. The agent prompt must keep that
- * boundary; this file just labels the fields.
+ * Only the user-typed instruction/note is imperative.
  */
 (() => {
   'use strict';
@@ -50,10 +54,17 @@
   const state = {
     active: false,
     promptOpen: false,
+    promptExpanded: false,
+    draft: '',
+    draftScope: 'auto',
     hoverEl: null,
     selectedEl: null,
+    traces: {},
     seq: 0,
     queue: [],
+    pending: new Map(),   // Element -> Map<prop, change>   (previewed, not yet sent)
+    committed: [],        // [{ el, props: [...] }]          (sent, previews still on)
+    collapsed: new Set(), // section titles the user collapsed
   };
 
   try {
@@ -72,31 +83,112 @@
     } catch { /* storage full: queue lives in memory only */ }
   };
 
-  /* ---------------------------------------------------------------- UI --- */
+  /* ----------------------------------------------------------- UI shell --- */
 
   const Z = 2147483000;
-  const el = (tag, css, attrs) => {
-    const n = document.createElement(tag);
-    if (css) n.style.cssText = css;
-    n.setAttribute('data-cdm-ui', '');
-    if (attrs) for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
-    return n;
-  };
+  const host = document.createElement('div');
+  host.setAttribute('data-cdm-ui', '');
+  host.style.cssText = `position:fixed;inset:0;z-index:${Z};pointer-events:none;`;
+  const shadow = host.attachShadow({ mode: 'open' });
 
-  const root = el('div', `position:fixed;inset:0;z-index:${Z};pointer-events:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;`);
-  const hi = el('div', 'position:fixed;display:none;pointer-events:none;border:1.5px solid #3E7BFA;background:rgba(62,123,250,0.09);border-radius:2px;');
-  const hiLabel = el('div', `position:fixed;display:none;pointer-events:none;background:#16202C;color:#fff;font-size:11px;line-height:1;padding:4px 7px;border-radius:3px;white-space:nowrap;max-width:60vw;overflow:hidden;text-overflow:ellipsis;`);
-  const ring = el('div', 'position:fixed;display:none;pointer-events:none;border:1.5px solid #2EA36B;background:rgba(46,163,107,0.07);border-radius:2px;');
-  const card = el('div', `position:fixed;display:none;pointer-events:auto;width:340px;background:#101923;color:#DEE7F0;border:1px solid #2E3E50;border-radius:8px;box-shadow:0 12px 40px rgba(0,0,0,0.45);padding:10px 12px;font-size:12px;`);
-  const panel = el('div', `position:fixed;display:none;pointer-events:auto;top:12px;right:12px;bottom:12px;width:300px;overflow:auto;background:#101923;color:#DEE7F0;border:1px solid #2E3E50;border-radius:8px;box-shadow:0 12px 40px rgba(0,0,0,0.45);padding:12px 14px;font-size:11.5px;line-height:1.55;`);
-  const toast = el('div', `position:fixed;display:none;pointer-events:none;bottom:14px;left:14px;background:#101923;color:#DEE7F0;border:1px solid #2E3E50;border-radius:6px;padding:8px 12px;font-size:11.5px;max-width:46vw;`);
-  const chip = el('div', `position:fixed;display:none;pointer-events:auto;top:10px;left:50%;transform:translateX(-50%);align-items:center;gap:10px;background:#101923;color:#DEE7F0;border:1px solid #3E7BFA;border-radius:99px;padding:5px 7px 5px 14px;font-size:11.5px;box-shadow:0 6px 24px rgba(0,0,0,0.35);`);
-  chip.innerHTML = `<span style="font-weight:600">Design Mode</span><span style="color:#7E93A9">click an element · Esc exits</span><button data-cdm-ui title="Exit Design Mode" style="font:inherit;width:22px;height:22px;border-radius:50%;border:1px solid #2E3E50;background:transparent;color:#DEE7F0;cursor:pointer;line-height:1">&#10005;</button>`;
+  const style = document.createElement('style');
+  style.textContent = `
+    :host { all: initial; }
+    * { box-sizing: border-box; }
+    .ui { font: 11.5px/1.45 -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui, sans-serif; color: #E8E8E8; -webkit-font-smoothing: antialiased; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    button { font: inherit; white-space: nowrap; cursor: pointer; }
+    .hi { position: fixed; display: none; pointer-events: none; border: 1.5px solid #0C8CE9; background: rgba(12,140,233,0.08); border-radius: 2px; }
+    .hi-label { position: fixed; display: none; pointer-events: none; background: #0C8CE9; color: #fff; font-size: 10.5px; line-height: 1; padding: 4px 7px; border-radius: 3px; white-space: nowrap; max-width: 60vw; overflow: hidden; text-overflow: ellipsis; }
+    .ring { position: fixed; display: none; pointer-events: none; border: 1.5px solid #0C8CE9; box-shadow: 0 0 0 3px rgba(12,140,233,0.18); border-radius: 2px; }
+    .ta { display: block; width: 100%; background: #2B2B2B; color: #E8E8E8; border: 1px solid transparent; border-radius: 6px; padding: 7px 9px; font: inherit; resize: vertical; outline: none; min-height: 54px; }
+    .ta:focus { border-color: #0C8CE9; }
+    .sec-h .kbd { color: #9B9B9B; font-weight: 400; font-size: 10px; margin-left: auto; margin-right: 8px; }
+    .scopes { display: flex; gap: 5px; margin-top: 8px; flex-wrap: wrap; }
+    .scope { font-size: 10.5px; padding: 3px 9px; border-radius: 99px; border: 1px solid #3A3A3A; background: transparent; color: #E8E8E8; }
+    .scope.on { border-color: #0C8CE9; background: rgba(12,140,233,0.18); }
+    .card-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 8px; min-width: 0; }
+    .hint { color: #9B9B9B; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+    .btn { height: 28px; padding: 0 12px; border-radius: 6px; border: 1px solid #3A3A3A; background: #2B2B2B; color: #E8E8E8; flex: none; }
+    .btn:hover { border-color: #4A4A4A; }
+    .btn.primary { background: #0C8CE9; border-color: #0C8CE9; color: #fff; }
+    .btn.primary:hover { background: #1D97F0; }
+    .btn.ghost { background: transparent; }
+    .btn.sm { height: 22px; padding: 0 8px; font-size: 10.5px; }
+    .panel { position: fixed; top: 12px; right: 12px; bottom: 12px; width: 284px; display: none; flex-direction: column; pointer-events: auto; background: #1E1E1E; border: 1px solid #333; border-radius: 10px; box-shadow: 0 16px 48px rgba(0,0,0,0.5); overflow: hidden; }
+    .panel-scroll { flex: 1; overflow: auto; padding: 12px 12px 10px; }
+    .p-title { font-weight: 600; font-size: 13px; display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+    .p-title .tag { color: #9B9B9B; font-weight: 400; font-size: 11px; }
+    .p-sub { color: #8FB2FF; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .p-src { color: #9B9B9B; font-size: 10.5px; margin-top: 6px; word-break: break-all; }
+    .p-classes { color: #9B9B9B; font-size: 10.5px; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .flag { color: #E8963C; font-size: 10.5px; margin-top: 5px; }
+    .sec { border-top: 1px solid #2C2C2C; margin-top: 10px; padding-top: 8px; }
+    .sec-h { display: flex; align-items: center; justify-content: space-between; font-weight: 600; font-size: 11.5px; margin-bottom: 6px; cursor: pointer; user-select: none; }
+    .sec-h .chev { color: #9B9B9B; font-size: 10px; transition: transform .12s; }
+    .sec.closed .chev { transform: rotate(-90deg); }
+    .sec.closed .sec-body { display: none; }
+    .row { display: grid; grid-template-columns: 62px 1fr; gap: 6px; align-items: center; padding: 2.5px 0; min-width: 0; }
+    .lbl { color: #9B9B9B; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 5px; }
+    .ctl { height: 26px; width: 100%; min-width: 0; background: #2B2B2B; border: 1px solid transparent; border-radius: 6px; color: #E8E8E8; font: inherit; padding: 0 8px; outline: none; }
+    .ctl:hover { border-color: #3A3A3A; }
+    .ctl:focus { border-color: #0C8CE9; }
+    .ctl[disabled] { color: #9B9B9B; }
+    select.ctl { appearance: none; -webkit-appearance: none; background-image: linear-gradient(45deg, transparent 50%, #9B9B9B 50%), linear-gradient(135deg, #9B9B9B 50%, transparent 50%); background-position: calc(100% - 12px) 11px, calc(100% - 8px) 11px; background-size: 4px 4px; background-repeat: no-repeat; padding-right: 20px; }
+    input[type=number].ctl { -moz-appearance: textfield; }
+    input[type=number].ctl::-webkit-inner-spin-button { opacity: 0.6; }
+    .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; min-width: 0; }
+    .unit { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px; min-width: 0; }
+    .unit .u { color: #9B9B9B; font-size: 10px; white-space: nowrap; }
+    .swatched { display: grid; grid-template-columns: auto 1fr; gap: 6px; align-items: center; min-width: 0; }
+    .sw { width: 16px; height: 16px; border-radius: 4px; border: 1px solid #3A3A3A; }
+    .prim { color: #9B9B9B; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; grid-column: 2; margin-top: -1px; }
+    .dot { width: 6px; height: 6px; border-radius: 50%; background: #E8963C; display: inline-block; flex: none; }
+    .tray { border-top: 1px solid #333; background: #232323; padding: 10px 12px; }
+    .tray-h { display: flex; justify-content: space-between; align-items: center; font-weight: 600; margin-bottom: 6px; }
+    .tray-h .muted { color: #9B9B9B; font-weight: 400; font-size: 10.5px; }
+    .chg { display: grid; grid-template-columns: 1fr auto; gap: 6px; align-items: center; padding: 3px 0; border-bottom: 1px solid #2C2C2C; min-width: 0; }
+    .chg:last-of-type { border-bottom: none; }
+    .chg .what { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .chg .what b { font-weight: 600; }
+    .chg .who { color: #9B9B9B; font-size: 10px; }
+    .chg .arrow { color: #9B9B9B; margin: 0 4px; }
+    .x { background: none; border: none; color: #9B9B9B; padding: 0 4px; font-size: 12px; }
+    .x:hover { color: #E8E8E8; }
+    .tray-note { width: 100%; margin-top: 8px; }
+    .tray-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 8px; }
+    .tray-foot select.ctl { width: auto; height: 26px; flex: 1; min-width: 0; }
+    .tray-status { color: #9B9B9B; font-size: 10.5px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .tray-status button { background: none; border: none; color: #8FB2FF; padding: 0; font-size: 10.5px; }
+    .toast { position: fixed; display: none; pointer-events: none; bottom: 14px; left: 14px; background: #1E1E1E; border: 1px solid #333; border-radius: 8px; padding: 8px 12px; max-width: 46vw; }
+    .chip { position: fixed; display: none; pointer-events: auto; top: 10px; left: 50%; transform: translateX(-50%); align-items: center; gap: 10px; background: #1E1E1E; border: 1px solid #0C8CE9; border-radius: 99px; padding: 5px 7px 5px 14px; box-shadow: 0 6px 24px rgba(0,0,0,0.35); }
+    .chip .muted { color: #9B9B9B; }
+    .chip button { width: 22px; height: 22px; border-radius: 50%; border: 1px solid #3A3A3A; background: transparent; color: #E8E8E8; line-height: 1; padding: 0; }
+    .crumbs { display: none; align-items: center; gap: 1px; border-top: 1px solid #333; background: #232323; padding: 7px 10px; white-space: nowrap; overflow-x: auto; overflow-y: hidden; font-size: 11px; scrollbar-width: none; flex: none; }
+    .crumbs::-webkit-scrollbar { display: none; }
+    .crumbs .sep, .crumbs .dots { color: #9B9B9B; padding: 0 2px; flex: none; }
+    .crumbs button { background: none; border: none; padding: 2px 5px; border-radius: 4px; color: #E8E8E8; flex: none; }
+    .crumbs button.cur { color: #0C8CE9; font-weight: 600; }
+    .crumbs button:hover { background: #2B2B2B; }
+  `;
+  shadow.append(style);
+
+  const mk = (cls, tag = 'div') => { const n = document.createElement(tag); n.className = cls; return n; };
+  const hi = mk('hi');
+  const hiLabel = mk('hi-label ui');
+  const ring = mk('ring');
+  const panel = mk('panel ui');
+  const panelScroll = mk('panel-scroll');
+  const tray = mk('tray');
+  const crumbs = mk('crumbs ui');
+  panel.append(panelScroll, crumbs, tray);
+  const toast = mk('toast ui');
+  const chip = mk('chip ui');
+  chip.innerHTML = '<span style="font-weight:600">Design Mode</span><span class="muted">click an element · Esc exits</span><button title="Exit Design Mode">&#10005;</button>';
   chip.querySelector('button').addEventListener('click', () => api.disable());
-  const crumbs = el('div', `position:fixed;display:none;pointer-events:auto;bottom:10px;left:50%;transform:translateX(-50%);max-width:82vw;align-items:center;gap:2px;background:#101923;color:#DEE7F0;border:1px solid #2E3E50;border-radius:99px;padding:4px 12px;font-size:11px;white-space:nowrap;overflow:hidden;box-shadow:0 6px 24px rgba(0,0,0,0.35);`);
-  root.append(hi, hiLabel, ring, card, panel, toast, chip, crumbs);
+  shadow.append(hi, hiLabel, ring, panel, toast, chip);
 
-  const ensureMounted = () => { if (!root.isConnected) document.documentElement.append(root); };
+  const ensureMounted = () => { if (!host.isConnected) document.documentElement.append(host); };
   ensureMounted();
 
   let toastTimer = null;
@@ -120,7 +212,7 @@
 
   /* ------------------------------------------------------ introspection --- */
 
-  const isOurs = (n) => n instanceof Element && !!n.closest('[data-cdm-ui]');
+  const isOurs = (n) => n instanceof Element && (n === host || !!n.closest('[data-cdm-ui]'));
 
   const cssPath = (target) => {
     const parts = [];
@@ -177,19 +269,11 @@
   };
 
   const resolveSource = (target) => {
-    // Rung 1: build-time stamp (this repo's vite plugin, LocatorJS, etc.)
     const stamped = target.closest('[data-claude-source]');
     if (stamped) {
-      const raw = stamped.getAttribute('data-claude-source') || '';
-      const m = raw.match(/^(.*):(\d+):(\d+)$/);
-      if (m) {
-        return {
-          via: stamped === target ? 'stamp' : 'stamp-ancestor',
-          file: m[1], line: +m[2], col: +m[3],
-        };
-      }
+      const m = (stamped.getAttribute('data-claude-source') || '').match(/^(.*):(\d+):(\d+)$/);
+      if (m) return { via: stamped === target ? 'stamp' : 'stamp-ancestor', file: m[1], line: +m[2], col: +m[3] };
     }
-    // Rung 2: Svelte dev metadata
     let n = target;
     while (n) {
       if (n.__svelte_meta && n.__svelte_meta.loc) {
@@ -198,13 +282,11 @@
       }
       n = n.parentElement;
     }
-    // Rung 2b: Vue inspector stamp
     const vue = target.closest('[data-v-inspector]');
     if (vue) {
       const m = (vue.getAttribute('data-v-inspector') || '').match(/^(.*):(\d+):(\d+)$/);
       if (m) return { via: 'vue', file: m[1], line: +m[2], col: +m[3] };
     }
-    // Rungs 3 and 4: React fibers
     const fiber = findFiber(target);
     if (fiber) {
       let f = fiber;
@@ -218,10 +300,7 @@
         hops++;
       }
       const stack = fiber._debugStack && (fiber._debugStack.stack || String(fiber._debugStack));
-      if (stack) {
-        // Raw V8/JSC stack; the agent symbolicates against the repo + dev-server sourcemaps.
-        return { via: 'debugStack', stack: String(stack).slice(0, MAX_STACK) };
-      }
+      if (stack) return { via: 'debugStack', stack: String(stack).slice(0, MAX_STACK) };
     }
     return { via: 'none' };
   };
@@ -233,7 +312,6 @@
     'color', 'backgroundColor', 'borderRadius', 'border', 'boxShadow',
     'opacity', 'overflow', 'zIndex', 'transform',
   ];
-
   const computedSubset = (target) => {
     const cs = getComputedStyle(target);
     const out = {};
@@ -244,7 +322,7 @@
   const walkRules = (cb) => {
     for (const sheet of document.styleSheets) {
       let rules;
-      try { rules = sheet.cssRules; } catch { continue; } // cross-origin
+      try { rules = sheet.cssRules; } catch { continue; }
       const source = sheet.href
         || (sheet.ownerNode && sheet.ownerNode.getAttribute && sheet.ownerNode.getAttribute('data-vite-dev-id'))
         || 'inline';
@@ -252,9 +330,7 @@
         for (const rule of list) {
           if (cb(rule, source, layer) === false) return false;
           if (rule.cssRules && rule.cssRules.length) {
-            const nextLayer = (typeof CSSLayerBlockRule !== 'undefined' && rule instanceof CSSLayerBlockRule)
-              ? rule.name
-              : layer;
+            const nextLayer = (typeof CSSLayerBlockRule !== 'undefined' && rule instanceof CSSLayerBlockRule) ? rule.name : layer;
             if (visit(rule.cssRules, nextLayer) === false) return false;
           }
         }
@@ -270,22 +346,12 @@
     walkRules((rule, source, layer) => {
       if (scanned++ > MAX_RULE_SCAN || out.length >= MAX_RULES) return false;
       if (rule.selectorText) {
-        try {
-          if (target.matches(rule.selectorText)) out.push({ rule, source, layer });
-        } catch { /* unsupported selector */ }
+        try { if (target.matches(rule.selectorText)) out.push({ rule, source, layer }); } catch { /* unsupported selector */ }
       }
     });
     return out;
   };
-
-  const matchedRules = (ruleObjs) =>
-    ruleObjs.map(({ rule, source }) => ({ selector: rule.selectorText, source }));
-
-  /* Token tracing: for each property, find the authored declaration, then walk
-   * its var() chain (semantic token -> ... -> primitive) so edits can be judged
-   * as "layered token" vs "hardcoded value". Cascade approximation: inline
-   * style first, else the LAST matching rule that sets the property (correct
-   * for equal-specificity utility CSS, which is the dominant case here). */
+  const matchedRules = (ruleObjs) => ruleObjs.map(({ rule, source }) => ({ selector: rule.selectorText, source }));
 
   let propIndex = null;
   let propIndexAt = 0;
@@ -296,11 +362,11 @@
     let scanned = 0;
     walkRules((rule) => {
       if (scanned++ > 12000) return false;
-      const style = rule.style;
-      if (!style) return;
-      for (let i = 0; i < style.length; i++) {
-        const name = style[i];
-        if (name && name.startsWith('--')) index[name] = style.getPropertyValue(name).trim();
+      const s = rule.style;
+      if (!s) return;
+      for (let i = 0; i < s.length; i++) {
+        const name = s[i];
+        if (name && name.startsWith('--')) index[name] = s.getPropertyValue(name).trim();
       }
     });
     propIndex = index;
@@ -310,22 +376,14 @@
   };
 
   const VAR_RE = /var\(\s*(--[A-Za-z0-9_-]+)/;
-
   const TRACE_PROPS = [
-    'color', 'background-color', 'border-color', 'font-size', 'font-weight',
-    'line-height', 'letter-spacing', 'padding', 'padding-inline', 'padding-block',
-    'margin', 'margin-inline', 'margin-block', 'gap', 'border-radius', 'box-shadow',
+    'color', 'background-color', 'border-color', 'font-family', 'font-size', 'font-weight',
+    'line-height', 'letter-spacing', 'text-align', 'padding', 'padding-inline', 'padding-block',
+    'margin', 'margin-inline', 'margin-block', 'gap', 'border-radius', 'box-shadow', 'opacity',
   ];
 
-  /* Status taxonomy:
-   *   token     authored through a var() chain (layered design token)
-   *   utility   a framework utility class with a literal value (rounded-full):
-   *             still system usage, not a hand-typed value
-   *   hardcoded a literal from inline style, user CSS, or an arbitrary-value
-   *             utility (w-[347px] compiles to a literal and selector keeps
-   *             the escaped bracket) - the thing to keep out of the codebase
-   *   reset     preflight/base-layer declarations (border-color: currentcolor
-   *             from the * rule): not a design decision, hidden in the panel */
+  /* token: var() chain · utility: framework class with a literal (rounded-full)
+   * hardcoded: inline/user literal or arbitrary-value utility · reset: preflight */
   const tokenTrace = (target, ruleObjs) => {
     const cs = getComputedStyle(target);
     const index = customProps();
@@ -340,7 +398,6 @@
         for (const obj of ruleObjs) {
           const v = obj.rule.style && obj.rule.style.getPropertyValue(prop).trim();
           if (!v) continue;
-          // later rules win, except base/preflight never beats a non-base layer
           if (!best || obj.layer !== 'base' || best.layer === 'base') best = { ...obj, v };
         }
         if (best) {
@@ -350,14 +407,11 @@
           from = `${selector} · ${String(best.source).split('/').pop()}`;
         }
       }
-      if (!authored) continue; // inherited or UA default: nothing authored to judge
+      if (!authored) continue;
       const chain = [];
       let cur = authored;
       let guard = 0;
       while (guard++ < 6) {
-        // among the vars referenced here (including fallbacks like
-        // var(--tw-leading, var(--text-sm--line-height))), follow the first
-        // one that actually resolves
         const names = [...cur.matchAll(/var\(\s*(--[A-Za-z0-9_-]+)/g)].map((m) => m[1]);
         if (!names.length) break;
         let picked = names[0];
@@ -373,7 +427,7 @@
         cur = def;
       }
       let computed = cs.getPropertyValue(prop).trim();
-      if (!computed) computed = cs.getPropertyValue(`${prop}-start`).trim(); // logical shorthands
+      if (!computed) computed = cs.getPropertyValue(`${prop}-start`).trim();
       let status;
       if (chain.length) status = 'token';
       else if (layer === 'base') status = 'reset';
@@ -384,46 +438,106 @@
     return out;
   };
 
+  const semanticName = (t) => {
+    if (!t) return null;
+    if (t.chain.length) return t.chain[0].name.replace(/^--/, '');
+    if (t.status === 'utility' && t.selector) {
+      return t.selector.split(',')[0].trim().replace(/^\./, '').replace(/\\/g, '').replace(/:.*$/, '');
+    }
+    return null;
+  };
+  const primitiveOf = (t, fallback = '') => t ? (t.chain.length ? t.chain[t.chain.length - 1].value : (t.computed || t.authored)) : fallback;
+
+  // Token catalog for the pickers: whatever the page's CSS defines.
+  const natural = (a, b) => a.localeCompare(b, undefined, { numeric: true });
+  let catalogCache = null;
+  let catalogAt = 0;
+  const tokenCatalog = () => {
+    if (catalogCache && Date.now() - catalogAt < 10000) return catalogCache;
+    const idx = customProps();
+    const names = Object.keys(idx);
+    const pick = (re) => names.filter((n) => re.test(n)).sort(natural);
+    catalogCache = {
+      color: pick(/^--color-/),
+      fontFamily: pick(/^--font-(?!weight-)[a-z]/),
+      fontWeight: pick(/^--font-weight-/),
+      fontSize: pick(/^--text-(?!.*--)/),
+      lineHeight: pick(/^--leading-/),
+      tracking: pick(/^--tracking-/),
+      radius: pick(/^--radius-/),
+      shadow: pick(/^--shadow-/),
+      spacingBase: idx['--spacing'] || '0.25rem',
+    };
+    catalogAt = Date.now();
+    return catalogCache;
+  };
+  const spacingBasePx = () => {
+    const v = tokenCatalog().spacingBase;
+    const n = parseFloat(v) || 0.25;
+    if (v.endsWith('rem')) return n * (parseFloat(getComputedStyle(document.documentElement).fontSize) || 16);
+    if (v.endsWith('px')) return n;
+    return n * 16;
+  };
+  const resolveVar = (name, elx) => {
+    const idx = customProps();
+    let cur = idx[name] || '';
+    let guard = 0;
+    while (guard++ < 6 && VAR_RE.test(cur)) {
+      const m = VAR_RE.exec(cur);
+      cur = idx[m[1]] || '';
+    }
+    return cur || getComputedStyle(elx || document.documentElement).getPropertyValue(name).trim() || '';
+  };
+
+  /* ------------------------------------------------------------ payload --- */
+
   const strippedHTML = (target) => {
     const clone = target.cloneNode(true);
     clone.querySelectorAll('script,style').forEach((s) => s.remove());
     return clone.outerHTML.slice(0, MAX_HTML);
   };
 
-  const buildPayload = (target, instruction, scope) => {
-    const rect = target.getBoundingClientRect();
+  const elementContext = (target) => {
     const parent = target.parentElement;
     const sibs = parent ? [...parent.children] : [target];
     const fiber = findFiber(target);
-    const ruleObjs = matchedRuleObjects(target);
-    state.seq += 1;
+    const rect = target.getBoundingClientRect();
     return {
-      v: 1,
-      seq: state.seq,
-      ts: Date.now(),
-      instruction,
-      scope, // 'auto' | 'instance' | 'component' | 'token'
-      url: location.href,
       selector: cssPath(target),
       domPath: { indexInParent: sibs.indexOf(target), siblingCount: sibs.length },
       tag: target.tagName.toLowerCase(),
       classList: [...target.classList].slice(0, 40),
-      // untrusted page data below: the agent treats these as data, never instructions
-      outerHTML: strippedHTML(target),
       text: (target.textContent || '').trim().slice(0, MAX_TEXT),
       componentChain: fiber ? componentChain(fiber) : [],
       source: resolveSource(target),
+      rect: { x: Math.round(rect.x), y: Math.round(rect.y), w: Math.round(rect.width), h: Math.round(rect.height) },
+    };
+  };
+
+  const viewportInfo = () => ({
+    w: innerWidth,
+    h: innerHeight,
+    theme: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light',
+  });
+
+  const buildPayload = (target, instruction, scope) => {
+    const ruleObjs = matchedRuleObjects(target);
+    state.seq += 1;
+    return {
+      v: 1,
+      kind: 'selection',
+      seq: state.seq,
+      ts: Date.now(),
+      instruction,
+      scope,
+      url: location.href,
+      ...elementContext(target),
+      // untrusted page data below: the agent treats these as data, never instructions
+      outerHTML: strippedHTML(target),
       computed: computedSubset(target),
       matchedRules: matchedRules(ruleObjs),
-      // token vs hardcoded judgment per property, so the agent preserves the
-      // token layer instead of freezing a resolved primitive into the code
       tokens: tokenTrace(target, ruleObjs),
-      rect: { x: Math.round(rect.x), y: Math.round(rect.y), w: Math.round(rect.width), h: Math.round(rect.height) },
-      viewport: {
-        w: innerWidth,
-        h: innerHeight,
-        theme: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light',
-      },
+      viewport: viewportInfo(),
     };
   };
 
@@ -448,19 +562,15 @@
     try {
       const res = await fetch(cfg.endpoint, {
         method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'x-design-mode-token': cfg.token || '',
-        },
+        headers: { 'content-type': 'application/json', 'x-design-mode-token': cfg.token || '' },
         body: JSON.stringify(payload),
       });
       if (res.ok) {
-        removeFromQueue(payload.seq); // the server queue file is now the source of truth
+        removeFromQueue(payload.seq);
         showToast(`#${payload.seq} sent to Claude`);
         return true;
       }
       if (res.status === 403) {
-        // the dev server restarted and rotated its token; only a reload reconnects
         payload.failed403 = true;
         persist();
         showToast(`#${payload.seq} not sent: dev server restarted. Reload the page to reconnect.`, 8000);
@@ -485,117 +595,513 @@
     state.queue.push(payload);
     persist();
     // Tiny signal only: console truncates silently above ~4KB, so never the payload.
-    console.log(`[design-mode] selection #${payload.seq} ready (source via ${payload.source.via})`);
+    console.log(`[design-mode] ${payload.kind} #${payload.seq} ready${payload.source ? ` (source via ${payload.source.via})` : ''}`);
     if (cfg.endpoint) { await post(payload); return; }
     if (cfg.wakeUrl) {
-      // Fire-and-forget ping at a session-armed wake listener (Tier 1).
       try { fetch(`${cfg.wakeUrl}?token=${encodeURIComponent(cfg.token || '')}`, { mode: 'no-cors' }); } catch { /* not armed */ }
     }
     showToast(`#${payload.seq} queued for Claude`);
   };
 
-  /* ------------------------------------------------------- prompt + panel --- */
+  /* ------------------------------------------------------ live previews --- */
+
+  const pendingFor = (elx) => {
+    if (!state.pending.has(elx)) state.pending.set(elx, new Map());
+    return state.pending.get(elx);
+  };
+  const pendingCount = () => [...state.pending.values()].reduce((n, m) => n + m.size, 0);
+
+  const labelFor = (side) => side.label || (side.token ? side.token.replace(/^--/, '') : (side.primitive || side.css || ''));
+
+  const SPACING_RE = /calc\(\s*var\(--spacing\)\s*\*\s*(-?[\d.]+)\s*\)/;
+  const fromLabel = (t) => {
+    if (!t) return null;
+    const m = t.authored && SPACING_RE.exec(t.authored);
+    if (m) return `spacing × ${m[1]}`;
+    if (!t.chain.length && /^[a-z-]+$/.test(t.authored)) return t.authored; // transparent, none, inherit
+    return t.chain.length ? null : semanticName(t);
+  };
+
+  // Apply a runtime override and record it. meta: { token?, primitive?, label?, system? }
+  // system=true means the value maps to a framework utility (display:flex, spacing units),
+  // so it is not a hardcoded literal even though it carries no token.
+  const applyPreview = (prop, css, meta = {}) => {
+    const elx = state.selectedEl;
+    if (!elx) return;
+    const t = state.traces[prop];
+    const map = pendingFor(elx);
+    const existing = map.get(prop);
+    const from = existing ? existing.from : {
+      inline: elx.style.getPropertyValue(prop),
+      authored: t ? t.authored : null,
+      token: t && t.chain.length ? t.chain[0].name : null,
+      label: fromLabel(t),
+      primitive: primitiveOf(t, getComputedStyle(elx).getPropertyValue(prop).trim()),
+    };
+    if (existing) (existing.companions || []).forEach((c) => c.before ? elx.style.setProperty(c.prop, c.before) : elx.style.removeProperty(c.prop));
+    elx.style.setProperty(prop, css);
+    const companions = [];
+    if (prop === 'font-size' && meta.token && customProps()[`${meta.token}--line-height`] !== undefined) {
+      const before = existing && existing.companions && existing.companions[0] ? existing.companions[0].before : elx.style.getPropertyValue('line-height');
+      companions.push({ prop: 'line-height', before, css: `var(${meta.token}--line-height)` });
+      elx.style.setProperty('line-height', `var(${meta.token}--line-height)`);
+    }
+    map.set(prop, {
+      prop,
+      from,
+      to: { css, token: meta.token || null, label: meta.label || null, primitive: meta.primitive || css, hardcoded: !meta.token && !meta.system },
+      companions,
+    });
+    renderTray();
+  };
+
+  const liftOverride = (elx, c) => {
+    c.from.inline ? elx.style.setProperty(c.prop, c.from.inline) : elx.style.removeProperty(c.prop);
+    (c.companions || []).forEach((cp) => cp.before ? elx.style.setProperty(cp.prop, cp.before) : elx.style.removeProperty(cp.prop));
+  };
+
+  const revertChange = (elx, prop) => {
+    const map = state.pending.get(elx);
+    if (!map || !map.has(prop)) return;
+    liftOverride(elx, map.get(prop));
+    map.delete(prop);
+    if (!map.size) state.pending.delete(elx);
+    renderTray();
+    if (elx === state.selectedEl) renderPanel(elx, true);
+  };
+
+  const discardAll = () => {
+    for (const [elx, map] of state.pending) for (const c of map.values()) liftOverride(elx, c);
+    state.pending = new Map();
+    renderTray();
+    if (state.selectedEl) renderPanel(state.selectedEl, true);
+  };
+
+  const clearPreviews = () => {
+    discardAll();
+    for (const { el: elx, changes } of state.committed) for (const c of changes) liftOverride(elx, c);
+    state.committed = [];
+    renderTray();
+    if (state.selectedEl) renderPanel(state.selectedEl, true);
+  };
+
+  const commitChanges = (note, scope) => {
+    const targets = [];
+    for (const [elx, map] of state.pending) {
+      if (!map.size || !elx.isConnected) continue;
+      targets.push({
+        ...elementContext(elx),
+        edits: [...map.values()].map((c) => ({
+          prop: c.prop,
+          from: { authored: c.from.authored, token: c.from.token, label: c.from.label, primitive: c.from.primitive },
+          to: { css: c.to.css, token: c.to.token, label: c.to.label, primitive: c.to.primitive, hardcoded: c.to.hardcoded },
+        })),
+      });
+      state.committed.push({ el: elx, changes: [...map.values()] });
+    }
+    if (!targets.length) return;
+    const summary = targets.map((tg) => `${tg.componentChain[0] || tg.tag}: ${tg.edits.map((e) => `${e.prop} ${labelFor(e.from)} → ${labelFor(e.to)}`).join(', ')}`).join('; ');
+    state.seq += 1;
+    const payload = {
+      v: 1,
+      kind: 'design-edits',
+      seq: state.seq,
+      ts: Date.now(),
+      instruction: note ? `${note} (design edits: ${summary})` : `Apply these design edits to the source: ${summary}`,
+      note,
+      scope,
+      url: location.href,
+      viewport: viewportInfo(),
+      targets,
+    };
+    state.pending = new Map();
+    renderTray();
+    deliver(payload);
+  };
+
+  /* ------------------------------------------------------------ tray UI --- */
 
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-  const SECTION = 'color:#7E93A9;text-transform:uppercase;font-size:9.5px;letter-spacing:0.08em;margin:12px 0 3px;border-top:1px solid #1D2836;padding-top:9px';
+  const elLabel = (elx) => {
+    const f = findFiber(elx);
+    const chain = f ? componentChain(f) : [];
+    return chain[0] || elx.tagName.toLowerCase();
+  };
 
-  const isColorish = (v) => /^(#|rgb|oklch|hsl|color\()/i.test(v);
-  const swatch = (v) => (isColorish(v) && /^[#\w(),.%\s\/-]+$/.test(v))
-    ? `<span style="display:inline-block;width:9px;height:9px;border-radius:2px;border:1px solid #2E3E50;background:${esc(v)};margin-right:4px"></span>`
-    : '';
-
-  // The panel shows the semantic layer first (token or utility name) with the
-  // primitive resolved beside it; the full chain and source rule live in the
-  // row's tooltip. Reset-layer rows are hidden as noise.
-  const semanticName = (t) => {
-    if (t.chain.length) return t.chain[0].name.replace(/^--/, '');
-    if (t.status === 'utility' && t.selector) {
-      return t.selector.split(',')[0].trim().replace(/^\./, '').replace(/\\/g, '').replace(/:.*$/, '');
+  let trayNoteValue = '';
+  let trayScopeValue = 'auto';
+  const renderTray = () => {
+    const n = pendingCount();
+    const committed = state.committed.reduce((k, c) => k + c.changes.length, 0);
+    if (!n && !committed) { tray.style.display = 'none'; return; }
+    tray.style.display = 'block';
+    tray.innerHTML = '';
+    if (n) {
+      const h = mk('tray-h');
+      h.innerHTML = `<span>Changes <span class="muted">· ${n}</span></span>`;
+      const discard = mk('btn sm ghost', 'button');
+      discard.textContent = 'Discard';
+      discard.addEventListener('click', discardAll);
+      h.append(discard);
+      tray.append(h);
+      for (const [elx, map] of state.pending) {
+        for (const c of map.values()) {
+          const row = mk('chg');
+          const what = mk('what');
+          what.innerHTML = `<span class="who">${esc(elLabel(elx))}</span> <b>${esc(c.prop)}</b> ${esc(labelFor(c.from))}<span class="arrow">→</span>${esc(labelFor(c.to))}${c.to.hardcoded ? ' <span class="dot" title="hardcoded value"></span>' : ''}`;
+          what.title = `${c.from.primitive} → ${c.to.primitive}${c.to.hardcoded ? ' (hardcoded)' : ''}`;
+          const x = mk('x', 'button');
+          x.textContent = '✕';
+          x.title = 'Revert';
+          x.addEventListener('click', () => revertChange(elx, c.prop));
+          row.append(what, x);
+          tray.append(row);
+        }
+      }
+      const note = mk('ctl tray-note', 'input');
+      note.type = 'text';
+      note.placeholder = 'Note for Claude (optional)';
+      note.value = trayNoteValue;
+      note.setAttribute('data-cdm-field', '');
+      note.addEventListener('input', () => { trayNoteValue = note.value; });
+      note.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') commit.click(); });
+      tray.append(note);
+      const foot = mk('tray-foot');
+      const scope = mk('ctl', 'select');
+      scope.setAttribute('data-cdm-field', '');
+      [['auto', 'Scope: auto'], ['instance', 'This instance'], ['component', 'All instances'], ['token', 'The token']].forEach(([v, l]) => {
+        const o = document.createElement('option'); o.value = v; o.textContent = l; scope.append(o);
+      });
+      scope.value = trayScopeValue;
+      scope.addEventListener('change', () => { trayScopeValue = scope.value; });
+      const commit = mk('btn primary', 'button');
+      commit.textContent = 'Ask Claude to commit';
+      commit.addEventListener('click', () => { commitChanges(trayNoteValue.trim(), trayScopeValue); trayNoteValue = ''; });
+      foot.append(scope, commit);
+      tray.append(foot);
     }
-    return null;
+    if (committed) {
+      const s = mk('tray-status');
+      s.innerHTML = `<span>${committed} change${committed > 1 ? 's' : ''} sent, previewing until Claude applies them</span>`;
+      const clear = document.createElement('button');
+      clear.textContent = 'Clear previews';
+      clear.addEventListener('click', clearPreviews);
+      s.append(clear);
+      if (n) s.style.marginTop = '8px';
+      tray.append(s);
+    }
   };
 
-  const pretty = (v) => (v.includes('infinity') || v.includes('1.67772e+07')) ? 'full' : v;
+  /* ----------------------------------------------------------- controls --- */
 
-  const vrow = (label, t) => {
-    if (!t || t.status === 'reset') return '';
-    const sem = semanticName(t);
-    const prim = pretty(t.chain.length ? t.chain[t.chain.length - 1].value : (t.computed || t.authored));
-    const dot = t.status === 'hardcoded'
-      ? '<span style="flex:none;display:inline-block;width:6px;height:6px;border-radius:50%;background:#E8963C;margin-left:5px"></span>'
-      : '';
-    const tip = `${t.authored}${t.from ? ' · ' + t.from : ''}${t.chain.length ? ' · ' + t.chain.map((c) => c.name).join(' → ') + ' → ' + prim : ''}${t.status === 'hardcoded' ? ' · HARDCODED' : ''}`;
-    // the semantic name never clips; the primitive tail ellipsizes
-    const value = sem
-      ? `<span style="flex:none">${esc(sem)}</span><span style="color:#7E93A9;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-left:5px">· ${swatch(prim)}${esc(prim)}</span>`
-      : `<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${swatch(prim)}${esc(prim)}</span>`;
-    return `<div title="${esc(tip)}" style="display:flex;justify-content:space-between;gap:10px;padding:2.5px 0;align-items:center">
-      <span style="color:#7E93A9;flex:none">${esc(label)}</span>
-      <span style="display:flex;align-items:center;justify-content:flex-end;min-width:0">${value}${dot}</span>
-    </div>`;
+  const datalists = new Map();
+  const datalistFor = (key, names) => {
+    const id = `cdm-dl-${key}`;
+    let dl = datalists.get(key);
+    if (!dl) { dl = document.createElement('datalist'); dl.id = id; shadow.append(dl); datalists.set(key, dl); }
+    if (dl.dataset.n !== String(names.length)) {
+      dl.innerHTML = '';
+      for (const nme of names) { const o = document.createElement('option'); o.value = nme.replace(/^--/, ''); dl.append(o); }
+      dl.dataset.n = String(names.length);
+    }
+    return id;
   };
 
-  const crow = (label, value) => !value ? '' :
-    `<div style="display:flex;justify-content:space-between;gap:10px;padding:2.5px 0"><span style="color:#7E93A9">${esc(label)}</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(value)}</span></div>`;
+  const row = (label, control, opts = {}) => {
+    const r = mk('row');
+    const l = mk('lbl');
+    l.textContent = label;
+    if (opts.hardcoded) { const d = mk('dot', 'span'); d.title = 'hardcoded value'; l.append(d); }
+    if (opts.tip) r.title = opts.tip;
+    r.append(l, control);
+    return r;
+  };
 
-  const section = (title, rows) => rows.trim() ? `<div style="${SECTION}">${title}</div>${rows}` : '';
+  const fieldKeys = (inp, reset) => {
+    inp.setAttribute('data-cdm-field', '');
+    inp.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'Enter') { e.preventDefault(); inp.blur(); }
+      if (e.key === 'Escape') { e.preventDefault(); reset(); inp.blur(); }
+    });
+  };
 
-  const renderPanel = (target) => {
+  const tipFor = (t) => t ? `${t.authored}${t.from ? ' · ' + t.from : ''}${t.chain.length ? ' · ' + t.chain.map((c) => c.name).join(' → ') + ' → ' + primitiveOf(t) : ''}` : 'not authored (inherited or default)';
+
+  // Token picker: a datalist-backed input listing the page's tokens of one family.
+  // Typing a token name previews var(--token); typing anything else previews the
+  // literal and flags it hardcoded.
+  const tokenInput = ({ prop, family, key, swatch, special }) => {
+    const t = state.traces[prop];
+    const cat = tokenCatalog();
+    const names = cat[key] || [];
+    const cs = getComputedStyle(state.selectedEl);
+    const current = semanticName(t) || (t ? t.authored : '') || cs.getPropertyValue(prop).trim();
+    const wrap = mk(swatch ? 'swatched' : '');
+    let sw = null;
+    if (swatch) { sw = mk('sw', 'span'); sw.style.background = cs.getPropertyValue(prop); wrap.append(sw); }
+    const inp = mk('ctl', 'input');
+    inp.type = 'text';
+    inp.setAttribute('list', datalistFor(key, names));
+    inp.value = current;
+    inp.title = tipFor(t);
+    inp.autocomplete = 'off';
+    inp.spellcheck = false;
+    fieldKeys(inp, () => { inp.value = current; });
+    inp.addEventListener('change', () => {
+      const raw = inp.value.trim();
+      if (!raw || raw === current) return;
+      const name = raw.startsWith('--') ? raw : `--${raw}`;
+      const idx = customProps();
+      if (idx[name] !== undefined && family.test(name)) {
+        const prim = resolveVar(name, state.selectedEl);
+        applyPreview(prop, `var(${name})`, { token: name, primitive: prim });
+        if (sw) sw.style.background = prim;
+      } else if (special && special[raw]) {
+        applyPreview(prop, special[raw].css, { label: raw, primitive: special[raw].css, system: true });
+      } else {
+        applyPreview(prop, raw, { primitive: raw });
+        if (sw) sw.style.background = raw;
+      }
+    });
+    wrap.append(inp);
+    if (swatch) {
+      const prim = mk('prim');
+      prim.textContent = primitiveOf(t, cs.getPropertyValue(prop).trim());
+      wrap.append(prim);
+    }
+    return { node: wrap, hardcoded: !!t && t.status === 'hardcoded', tip: tipFor(t) };
+  };
+
+  const selectInput = ({ prop, options, current, system = true }) => {
+    const sel = mk('ctl', 'select');
+    for (const o of options) {
+      const opt = document.createElement('option');
+      opt.value = o; opt.textContent = o; sel.append(opt);
+    }
+    if (!options.includes(current)) { const opt = document.createElement('option'); opt.value = current; opt.textContent = current; sel.prepend(opt); }
+    sel.value = current;
+    sel.setAttribute('data-cdm-field', '');
+    sel.addEventListener('keydown', (e) => e.stopPropagation());
+    sel.addEventListener('change', () => applyPreview(prop, sel.value, { label: sel.value, primitive: sel.value, system }));
+    return sel;
+  };
+
+  // Spacing in framework units (multiples of --spacing), shown with the px it resolves to.
+  const spacingInput = ({ prop }) => {
+    const cs = getComputedStyle(state.selectedEl);
+    const base = spacingBasePx();
+    const raw = cs.getPropertyValue(`${prop}-start`) || cs.getPropertyValue(prop) || '0';
+    const px = parseFloat(raw) || 0;
+    const units = Math.round((px / base) * 4) / 4;
+    const wrap = mk('unit');
+    const inp = mk('ctl', 'input');
+    inp.type = 'number';
+    inp.step = '0.5';
+    inp.min = '0';
+    inp.value = String(units);
+    const u = mk('u', 'span');
+    u.textContent = `${Math.round(px)}px`;
+    fieldKeys(inp, () => { inp.value = String(units); });
+    inp.addEventListener('change', () => {
+      const n = Math.max(0, parseFloat(inp.value) || 0);
+      applyPreview(prop, `calc(var(--spacing) * ${n})`, { label: `spacing × ${n}`, primitive: `${n * base}px`, system: true });
+      u.textContent = `${Math.round(n * base)}px`;
+    });
+    wrap.append(inp, u);
+    const t = state.traces[prop];
+    return { node: wrap, hardcoded: !!t && t.status === 'hardcoded', tip: tipFor(t) };
+  };
+
+  const pair = (a, b) => { const p = mk('pair'); p.append(a, b); return p; };
+
+  const section = (title, rows) => {
+    const s = mk('sec' + (state.collapsed.has(title) ? ' closed' : ''));
+    const h = mk('sec-h');
+    h.innerHTML = `<span>${esc(title)}</span><span class="chev">&#9660;</span>`;
+    h.addEventListener('click', () => {
+      s.classList.toggle('closed');
+      if (s.classList.contains('closed')) state.collapsed.add(title); else state.collapsed.delete(title);
+    });
+    const body = mk('sec-body');
+    rows.filter(Boolean).forEach((r) => body.append(r));
+    s.append(h, body);
+    return s;
+  };
+
+  /* ------------------------------------------------------- ask claude --- */
+
+  const liveTarget = () => {
+    const target = state.selectedEl;
+    if (!target) return null;
+    if (target.isConnected) return target;
+    const stampSel = target.getAttribute('data-claude-source');
+    const text = (target.textContent || '').trim();
+    return stampSel
+      ? [...document.querySelectorAll(`[data-claude-source="${CSS.escape(stampSel)}"]`)].find((c) => (c.textContent || '').trim() === text) || null
+      : null;
+  };
+
+  const sendPrompt = () => {
+    const instruction = state.draft.trim();
+    if (!instruction) { if (state.promptFocus) state.promptFocus(); return; }
+    const live = liveTarget();
+    if (!live) { closePrompt(); showToast('The page updated under that selection; select it again.', 5000); return; }
+    const payload = buildPayload(live, instruction, state.draftScope);
+    state.draft = '';
+    if (state.promptReset) state.promptReset();
+    deliver(payload);
+  };
+
+  // Collapsed by default; Enter (with nothing focused) or a click on the header opens it.
+  const promptSection = () => {
+    const s = mk('sec prompt' + (state.promptExpanded ? '' : ' closed'));
+    const h = mk('sec-h');
+    h.innerHTML = '<span>Ask Claude</span><span class="kbd">&#8629; to open</span><span class="chev">&#9660;</span>';
+    const body = mk('sec-body');
+    const ta = mk('ta', 'textarea');
+    ta.rows = 2;
+    ta.placeholder = 'Describe the change…';
+    ta.value = state.draft;
+    ta.setAttribute('data-cdm-field', '');
+    ta.addEventListener('input', () => { state.draft = ta.value; });
+    ta.addEventListener('keydown', (e) => {
+      if (e.isComposing) return;
+      e.stopPropagation();
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendPrompt(); }
+      if (e.key === 'Escape') { e.preventDefault(); ta.blur(); }
+    });
+    const scopes = mk('scopes');
+    ['auto', 'instance', 'component', 'token'].forEach((sc) => {
+      const b = mk('scope' + (sc === state.draftScope ? ' on' : ''), 'button');
+      b.textContent = sc;
+      b.addEventListener('click', () => {
+        state.draftScope = sc;
+        scopes.querySelectorAll('.scope').forEach((x) => x.classList.toggle('on', x === b));
+      });
+      scopes.append(b);
+    });
+    const foot = mk('card-foot');
+    const hint = mk('hint', 'span');
+    hint.textContent = 'Enter to send · Shift+Enter newline';
+    const send = mk('btn primary', 'button');
+    send.textContent = 'Send to Claude';
+    send.addEventListener('click', sendPrompt);
+    foot.append(hint, send);
+    body.append(ta, scopes, foot);
+    const setOpen = (open) => {
+      state.promptExpanded = open;
+      s.classList.toggle('closed', !open);
+      h.querySelector('.kbd').style.display = open ? 'none' : '';
+      if (open) setTimeout(() => ta.focus(), 0);
+    };
+    h.addEventListener('click', () => setOpen(!state.promptExpanded));
+    h.querySelector('.kbd').style.display = state.promptExpanded ? 'none' : '';
+    state.promptOpenSection = () => setOpen(true);
+    state.promptFocus = () => { setOpen(true); };
+    state.promptReset = () => { ta.value = ''; };
+    s.append(h, body);
+    return s;
+  };
+
+  /* -------------------------------------------------------------- panel --- */
+
+  const renderPanel = (target, keepScroll = false) => {
+    const scrollTop = keepScroll ? panelScroll.scrollTop : 0;
     const fiber = findFiber(target);
     const chain = fiber ? componentChain(fiber) : [];
     const src = resolveSource(target);
     const ruleObjs = matchedRuleObjects(target);
-    const t = tokenTrace(target, ruleObjs);
+    state.traces = tokenTrace(target, ruleObjs);
+    const T = state.traces;
     const cs = getComputedStyle(target);
     const r = target.getBoundingClientRect();
-    const hardcoded = Object.values(t).filter((x) => x.status === 'hardcoded').length;
-    const srcLine = src.file ? `${src.file}:${src.line}:${src.col} (${src.via})`
+    const hardcoded = Object.values(T).filter((x) => x.status === 'hardcoded').length;
+    const srcLine = src.file ? `${src.file}:${src.line}:${src.col}`
       : src.via === 'debugStack' ? 'React 19 stack captured (agent symbolicates)'
       : 'unresolved (agent will search the repo)';
+
+    panelScroll.innerHTML = '';
+    const title = mk('p-title');
+    title.innerHTML = `<span>${esc(chain[0] || target.tagName.toLowerCase())}</span><span class="tag">&lt;${esc(target.tagName.toLowerCase())}&gt;</span>`;
+    const sub = mk('p-sub');
+    sub.textContent = chain.slice(1).join(' ← ');
+    sub.title = chain.join(' ← ');
+    const srcEl = mk('p-src mono');
+    srcEl.textContent = srcLine;
+    const classes = mk('p-classes');
+    classes.textContent = [...target.classList].join(' ');
+    classes.title = classes.textContent;
+    panelScroll.append(title, sub, srcEl, classes);
+    if (hardcoded) {
+      const f = mk('flag');
+      f.textContent = `● ${hardcoded} hardcoded value${hardcoded > 1 ? 's' : ''} on this element`;
+      panelScroll.append(f);
+    }
+
+    panelScroll.append(promptSection());
+
+    const tk = (label, opts) => { const c = tokenInput(opts); return row(label, c.node, { hardcoded: c.hardcoded, tip: c.tip }); };
+    const sp = (label, a, b) => {
+      const A = spacingInput({ prop: a });
+      const B = spacingInput({ prop: b });
+      return row(label, pair(A.node, B.node), { hardcoded: A.hardcoded || B.hardcoded, tip: `${a}: ${A.tip}\n${b}: ${B.tip}` });
+    };
+
     const disp = cs.display;
+    const isFlex = disp.includes('flex');
+    const isGrid = disp.includes('grid');
     const layout = [
-      crow('display', disp),
-      disp.includes('flex') ? crow('direction', cs.flexDirection) : '',
-      (disp.includes('flex') || disp.includes('grid')) ? crow('align', `${cs.alignItems} / ${cs.justifyContent}`) : '',
-      vrow('gap', t['gap']),
-    ].join('');
+      row('Display', selectInput({ prop: 'display', options: ['block', 'inline-block', 'flex', 'inline-flex', 'grid', 'none'], current: disp })),
+      isFlex ? row('Direction', selectInput({ prop: 'flex-direction', options: ['row', 'column'], current: cs.flexDirection })) : null,
+      (isFlex || isGrid) ? row('Align', selectInput({ prop: 'align-items', options: ['stretch', 'flex-start', 'center', 'flex-end', 'baseline'], current: cs.alignItems })) : null,
+      (isFlex || isGrid) ? row('Justify', selectInput({ prop: 'justify-content', options: ['flex-start', 'center', 'flex-end', 'space-between', 'space-around'], current: cs.justifyContent })) : null,
+      (isFlex || isGrid) ? (() => { const g = spacingInput({ prop: 'gap' }); return row('Gap', g.node, { hardcoded: g.hardcoded, tip: g.tip }); })() : null,
+    ];
     const spacing = [
-      vrow('pad x', t['padding-inline']),
-      vrow('pad y', t['padding-block']),
-      vrow('padding', t['padding']),
-      vrow('margin', t['margin']),
-      vrow('margin x', t['margin-inline']),
-      vrow('margin y', t['margin-block']),
-    ].join('');
-    const size = crow('size', `${Math.round(r.width)} × ${Math.round(r.height)}`);
+      sp('Padding', 'padding-inline', 'padding-block'),
+      sp('Margin', 'margin-inline', 'margin-block'),
+    ];
+    const w = mk('ctl', 'input'); w.value = `W ${Math.round(r.width)}`; w.disabled = true;
+    const h = mk('ctl', 'input'); h.value = `H ${Math.round(r.height)}`; h.disabled = true;
+    const size = [row('Box', pair(w, h))];
     const typography = [
-      vrow('size', t['font-size']),
-      vrow('weight', t['font-weight']),
-      vrow('leading', t['line-height']),
-      vrow('tracking', t['letter-spacing']),
-      t['color'] ? vrow('color', t['color']) : crow('color', cs.color),
-    ].join('');
+      tk('Font', { prop: 'font-family', family: /^--font-(?!weight-)/, key: 'fontFamily' }),
+      tk('Size', { prop: 'font-size', family: /^--text-(?!.*--)/, key: 'fontSize' }),
+      tk('Weight', { prop: 'font-weight', family: /^--font-weight-/, key: 'fontWeight' }),
+      tk('Leading', { prop: 'line-height', family: /^--leading-|^--text-.*--line-height$/, key: 'lineHeight' }),
+      tk('Tracking', { prop: 'letter-spacing', family: /^--tracking-/, key: 'tracking' }),
+      tk('Color', { prop: 'color', family: /^--color-/, key: 'color', swatch: true }),
+      row('Align', selectInput({ prop: 'text-align', options: ['start', 'left', 'center', 'right', 'justify'], current: cs.textAlign })),
+    ];
+    const opacityIn = mk('ctl', 'input');
+    opacityIn.type = 'number'; opacityIn.min = '0'; opacityIn.max = '100'; opacityIn.step = '5';
+    opacityIn.value = String(Math.round(parseFloat(cs.opacity) * 100));
+    fieldKeys(opacityIn, () => { opacityIn.value = String(Math.round(parseFloat(cs.opacity) * 100)); });
+    opacityIn.addEventListener('change', () => {
+      const v = Math.min(100, Math.max(0, parseFloat(opacityIn.value) || 0));
+      applyPreview('opacity', String(v / 100), { label: `${v}%`, primitive: String(v / 100), system: true });
+    });
+    const opWrap = mk('unit'); const pct = mk('u', 'span'); pct.textContent = '%'; opWrap.append(opacityIn, pct);
     const appearance = [
-      vrow('fill', t['background-color']),
-      vrow('radius', t['border-radius']),
-      vrow('border', t['border-color']),
-      vrow('shadow', t['box-shadow']),
-    ].join('');
-    panel.innerHTML = `
-      <div style="font-weight:600;font-size:12px;margin-bottom:2px">${esc(chain[0] || target.tagName.toLowerCase())} <span style="color:#7E93A9;font-weight:400">&lt;${esc(target.tagName.toLowerCase())}&gt;</span></div>
-      <div style="color:#8FB2FF;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(chain.join(' ← '))}">${esc(chain.slice(1).join(' ← ') || '')}</div>
-      ${hardcoded ? `<div style="color:#E8963C;margin-top:4px">&#9679; ${hardcoded} hardcoded value${hardcoded > 1 ? 's' : ''}</div>` : ''}
-      <div style="${SECTION}">Source</div>
-      <div style="word-break:break-all">${esc(srcLine)}</div>
-      <div style="color:#7E93A9;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px" title="${esc([...target.classList].join(' '))}">${esc([...target.classList].join(' ') || '')}</div>
-      ${section('Layout', layout)}
-      ${section('Spacing', spacing)}
-      ${section('Size', size)}
-      ${section('Typography', typography)}
-      ${section('Appearance', appearance)}
-    `;
-    panel.style.display = 'block';
+      tk('Fill', { prop: 'background-color', family: /^--color-/, key: 'color', swatch: true }),
+      tk('Radius', { prop: 'border-radius', family: /^--radius-/, key: 'radius', special: { full: { css: 'calc(infinity * 1px)' }, none: { css: '0px' } } }),
+      tk('Border', { prop: 'border-color', family: /^--color-/, key: 'color', swatch: true }),
+      tk('Shadow', { prop: 'box-shadow', family: /^--shadow-/, key: 'shadow', special: { none: { css: 'none' } } }),
+      row('Opacity', opWrap),
+    ];
+
+    panelScroll.append(
+      section('Layout', layout),
+      section('Spacing', spacing),
+      section('Size', size),
+      section('Typography', typography),
+      section('Appearance', appearance),
+    );
+    panel.style.display = 'flex';
+    panelScroll.scrollTop = scrollTop;
+    renderTray();
     renderCrumbs(target);
   };
 
@@ -608,36 +1114,28 @@
     crumbs.innerHTML = '';
     let prevComp = null;
     shown.forEach((node, i) => {
-      if (i) {
-        const sep = el('span', 'color:#7E93A9;padding:0 2px');
-        sep.textContent = '›';
-        crumbs.append(sep);
-      }
-      if (!node) {
-        const dots = el('span', 'color:#7E93A9');
-        dots.textContent = '…';
-        crumbs.append(dots);
-        return;
-      }
+      if (i) { const sep = mk('sep', 'span'); sep.textContent = '›'; crumbs.append(sep); }
+      if (!node) { const dots = mk('dots', 'span'); dots.textContent = '…'; crumbs.append(dots); return; }
       const f = ownFiber(node);
       const comp = f ? componentChain(f)[0] : null;
-      const label = (comp && comp !== prevComp)
-        ? comp
-        : node.tagName.toLowerCase() + (node.classList[0] ? '.' + node.classList[0] : '');
+      const label = (comp && comp !== prevComp) ? comp : node.tagName.toLowerCase() + (node.classList[0] ? '.' + node.classList[0] : '');
       if (comp) prevComp = comp;
-      const b = el('button', `font:inherit;background:none;border:none;cursor:pointer;padding:2px 4px;border-radius:4px;color:${node === target ? '#8FB2FF' : '#DEE7F0'};${node === target ? 'font-weight:600;' : ''}`);
+      const b = document.createElement('button');
+      if (node === target) b.className = 'cur';
       b.textContent = label.slice(0, 22);
       b.title = label;
       b.addEventListener('click', () => openPrompt(node));
       crumbs.append(b);
     });
     crumbs.style.display = 'flex';
+    crumbs.scrollLeft = crumbs.scrollWidth;
   };
+
+  /* ---------------------------------------------------------- selection --- */
 
   const closePrompt = () => {
     state.promptOpen = false;
     state.selectedEl = null;
-    card.style.display = 'none';
     panel.style.display = 'none';
     ring.style.display = 'none';
     crumbs.style.display = 'none';
@@ -648,76 +1146,28 @@
     state.promptOpen = true;
     hi.style.display = 'none';
     hiLabel.style.display = 'none';
-    const r = box(target, ring, 1);
+    box(target, ring, 1);
     renderPanel(target);
-
-    const fiber = findFiber(target);
-    const chain = fiber ? componentChain(fiber) : [];
-    const scopeChoices = ['auto', 'instance', 'component', 'token'];
-    card.innerHTML = `
-      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
-        <span style="font-weight:600">${esc(chain[0] || target.tagName.toLowerCase())}</span>
-        <span style="color:#7E93A9;font-size:10.5px">&lt;${esc(target.tagName.toLowerCase())}&gt; · ${Math.round(r.width)}×${Math.round(r.height)}</span>
-      </div>
-      <textarea data-cdm-ui rows="2" placeholder="Describe the change…" style="width:100%;box-sizing:border-box;background:#0A0F16;color:#DEE7F0;border:1px solid #2E3E50;border-radius:5px;padding:7px 9px;font:inherit;resize:vertical;outline:none"></textarea>
-      <div data-cdm-ui style="display:flex;gap:5px;margin-top:7px;flex-wrap:wrap">
-        ${scopeChoices.map((s, i) => `<button data-cdm-ui data-scope="${s}" style="font:inherit;font-size:10.5px;padding:3px 9px;border-radius:99px;border:1px solid ${i === 0 ? '#3E7BFA' : '#2E3E50'};background:${i === 0 ? '#16253C' : 'transparent'};color:#DEE7F0;cursor:pointer">${s}</button>`).join('')}
-      </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
-        <span style="color:#7E93A9;font-size:10px">Enter to send · Esc to cancel · ⌥click parent</span>
-        <button data-cdm-ui data-send style="font:inherit;font-size:11px;padding:5px 12px;border-radius:5px;border:none;background:#3E7BFA;color:#fff;cursor:pointer">Send to Claude</button>
-      </div>
-    `;
-    // position: below the element, flipped above if it would overflow
-    card.style.display = 'block';
-    const cw = Math.min(340, innerWidth - 16);
-    card.style.width = `${cw}px`;
-    const ch = card.offsetHeight || 150;
-    // stay on screen at any width; dodge the side panel only when there is room for both
-    const avoidPanel = innerWidth - cw - 320;
-    let left = Math.max(8, Math.min(r.left, avoidPanel >= 8 ? avoidPanel : innerWidth - cw - 8));
-    let top = r.bottom + 8;
-    if (top + ch > innerHeight - 48) top = Math.max(8, r.top - ch - 8); // keep clear of the crumb bar
-    card.style.left = `${left}px`;
-    card.style.top = `${top}px`;
-
-    let scope = 'auto';
-    card.querySelectorAll('[data-scope]').forEach((b) => {
-      b.addEventListener('click', () => {
-        scope = b.getAttribute('data-scope');
-        card.querySelectorAll('[data-scope]').forEach((x) => {
-          const on = x === b;
-          x.style.borderColor = on ? '#3E7BFA' : '#2E3E50';
-          x.style.background = on ? '#16253C' : 'transparent';
-        });
-      });
-    });
-    const ta = card.querySelector('textarea');
-    const send = () => {
-      const instruction = ta.value.trim();
-      if (!instruction) { ta.focus(); return; }
-      let live = target;
-      if (!live.isConnected) {
-        // HMR replaced the subtree while the user typed: re-find by stamp + text
-        const stampSel = target.getAttribute('data-claude-source');
-        const text = (target.textContent || '').trim();
-        live = stampSel
-          ? [...document.querySelectorAll(`[data-claude-source="${CSS.escape(stampSel)}"]`)].find((c) => (c.textContent || '').trim() === text) || null
-          : null;
-        if (!live) { closePrompt(); showToast('The page updated under that selection; select it again.', 5000); return; }
-      }
-      const payload = buildPayload(live, instruction, scope);
-      closePrompt();
-      deliver(payload);
-    };
-    card.querySelector('[data-send]').addEventListener('click', send);
-    ta.addEventListener('keydown', (e) => {
-      if (e.isComposing) return; // IME: let the composition finish
-      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
-      e.stopPropagation();
-    });
-    setTimeout(() => ta.focus(), 0);
   };
+
+  // Keep the ring and hover box glued to their elements while the page scrolls or resizes.
+  let rafPending = false;
+  const reposition = () => {
+    rafPending = false;
+    if (state.promptOpen && state.selectedEl && state.selectedEl.isConnected) box(state.selectedEl, ring, 1);
+    if (state.active && !state.promptOpen && state.hoverEl && state.hoverEl.isConnected) {
+      const r = box(state.hoverEl, hi);
+      hiLabel.style.left = `${Math.max(4, r.left)}px`;
+      hiLabel.style.top = `${Math.max(4, r.top - 24)}px`;
+    }
+  };
+  const onScrollOrResize = () => {
+    if (rafPending) return;
+    rafPending = true;
+    requestAnimationFrame(reposition);
+  };
+  window.addEventListener('scroll', onScrollOrResize, { capture: true, passive: true });
+  window.addEventListener('resize', onScrollOrResize);
 
   /* ------------------------------------------------------------- events --- */
 
@@ -764,6 +1214,14 @@
       return;
     }
     if (!state.active) return;
+    const origin = e.composedPath ? e.composedPath()[0] : e.target;
+    if (origin && origin.hasAttribute && origin.hasAttribute('data-cdm-field')) return; // panel fields handle their own keys
+    if (e.key === 'Enter' && state.promptOpen && state.promptOpenSection && !e.isComposing) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      state.promptOpenSection();
+      return;
+    }
     if (e.key === 'Escape' && !e.isComposing) {
       e.preventDefault();
       e.stopImmediatePropagation();
@@ -779,10 +1237,11 @@
   /* ---------------------------------------------------------------- api --- */
 
   const api = {
-    version: '0.2.1',
+    version: '0.3.0',
     bootId: Math.random().toString(36).slice(2, 10),
     config: cfg,
     heartbeat: Date.now(),
+    root: shadow,
     enable() {
       ensureMounted();
       state.active = true;
@@ -807,6 +1266,13 @@
       persist();
       return q;
     },
+    applied() {
+      clearPreviews();
+      showToast('Previews cleared; the page now shows the committed code.');
+    },
+    pendingChanges() {
+      return [...state.pending.entries()].map(([elx, m]) => ({ element: elLabel(elx), edits: [...m.values()].map((c) => ({ prop: c.prop, from: labelFor(c.from), to: labelFor(c.to), hardcoded: c.to.hardcoded })) }));
+    },
     notify(text) { showToast(String(text).slice(0, 300), 6000); },
     select(target) { if (target instanceof Element) { api.enable(); openPrompt(target); } },
     simulate(selector, instruction, scope = 'auto') {
@@ -821,6 +1287,6 @@
 
   setInterval(() => { api.heartbeat = Date.now(); }, 1000);
   window.__claudeDesign = api;
-  if (cfg.endpoint && state.queue.length) scheduleRetry(); // undelivered from before a reload
+  if (cfg.endpoint && state.queue.length) scheduleRetry();
   console.log('[design-mode] overlay ready', cfg.endpoint ? '(plugin endpoint)' : '(session mode)');
 })();
