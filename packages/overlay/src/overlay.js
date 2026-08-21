@@ -6,8 +6,12 @@
  * javascript_tool (Tier 1: set window.__CDM_CONFIG first, then eval this file).
  *
  * Contract with the agent:
- *   window.__claudeDesign.peek()  -> pending selection payloads (non-destructive)
- *   window.__claudeDesign.take()  -> pending payloads, clearing the queue (ack)
+ *   window.__claudeDesign.peek()  -> undelivered selection payloads (non-destructive;
+ *                                    in plugin mode delivered ones live in the
+ *                                    server's queue dir, not here)
+ *   window.__claudeDesign.take()  -> undelivered payloads, clearing the queue (ack)
+ *   window.__claudeDesign.bootId  -> random id per injection; it changes across a
+ *                                    full reload, so the agent can detect one
  *   window.__claudeDesign.notify(text) -> show a toast (edit results, questions)
  *   window.__claudeDesign.heartbeat    -> ms timestamp; stale/undefined means the
  *                                         overlay died (full reload) and needs re-injection
@@ -55,7 +59,9 @@
   try {
     const saved = JSON.parse(sessionStorage.getItem(STORAGE_KEY) || 'null');
     if (saved && Array.isArray(saved.queue)) {
-      state.queue = saved.queue;
+      // delivered entries belong to the server queue; a fresh boot has a fresh
+      // token, so earlier 403 failures are retryable again
+      state.queue = saved.queue.filter((p) => !p.delivered).map((p) => ({ ...p, failed403: false, attempts: 0 }));
       state.seq = saved.seq || state.queue.length;
     }
   } catch { /* corrupt storage: start fresh */ }
@@ -120,7 +126,7 @@
     const parts = [];
     let n = target;
     let depth = 0;
-    while (n && n !== document.body && depth < 8) {
+    while (n && n !== document.body && depth < 24) {
       if (n.id) { parts.unshift(`#${CSS.escape(n.id)}`); break; }
       const tag = n.tagName.toLowerCase();
       const sibs = n.parentElement ? [...n.parentElement.children].filter((s) => s.tagName === n.tagName) : [];
@@ -283,8 +289,9 @@
 
   let propIndex = null;
   let propIndexAt = 0;
+  let propIndexSheets = 0;
   const customProps = () => {
-    if (propIndex && Date.now() - propIndexAt < 10000) return propIndex;
+    if (propIndex && Date.now() - propIndexAt < 10000 && propIndexSheets === document.styleSheets.length) return propIndex;
     const index = Object.create(null);
     let scanned = 0;
     walkRules((rule) => {
@@ -298,6 +305,7 @@
     });
     propIndex = index;
     propIndexAt = Date.now();
+    propIndexSheets = document.styleSheets.length;
     return index;
   };
 
@@ -421,29 +429,64 @@
 
   /* ----------------------------------------------------------- delivery --- */
 
+  const removeFromQueue = (seq) => {
+    state.queue = state.queue.filter((p) => p.seq !== seq);
+    persist();
+  };
+
+  let retryTimer = null;
+  const scheduleRetry = () => {
+    if (retryTimer || !cfg.endpoint) return;
+    retryTimer = setTimeout(() => {
+      retryTimer = null;
+      state.queue.filter((p) => !p.failed403 && !p.gaveUp).forEach((p) => post(p));
+    }, 5000);
+  };
+
+  const post = async (payload) => {
+    payload.attempts = (payload.attempts || 0) + 1;
+    try {
+      const res = await fetch(cfg.endpoint, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-design-mode-token': cfg.token || '',
+        },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        removeFromQueue(payload.seq); // the server queue file is now the source of truth
+        showToast(`#${payload.seq} sent to Claude`);
+        return true;
+      }
+      if (res.status === 403) {
+        // the dev server restarted and rotated its token; only a reload reconnects
+        payload.failed403 = true;
+        persist();
+        showToast(`#${payload.seq} not sent: dev server restarted. Reload the page to reconnect.`, 8000);
+        return false;
+      }
+      if (payload.attempts >= 3) {
+        payload.gaveUp = true;
+        persist();
+        showToast(`#${payload.seq} rejected by the dev server (${res.status}); check its log.`, 8000);
+        return false;
+      }
+      showToast(`#${payload.seq} send failed (${res.status}), retrying…`, 6000);
+    } catch {
+      showToast(`#${payload.seq} dev server unreachable, retrying…`, 6000);
+    }
+    persist();
+    scheduleRetry();
+    return false;
+  };
+
   const deliver = async (payload) => {
     state.queue.push(payload);
     persist();
     // Tiny signal only: console truncates silently above ~4KB, so never the payload.
     console.log(`[design-mode] selection #${payload.seq} ready (source via ${payload.source.via})`);
-    if (cfg.endpoint) {
-      try {
-        const res = await fetch(cfg.endpoint, {
-          method: 'POST',
-          headers: {
-            'content-type': 'application/json',
-            'x-design-mode-token': cfg.token || '',
-          },
-          body: JSON.stringify(payload),
-        });
-        if (res.ok) {
-          payload.delivered = true;
-          persist();
-          showToast(`#${payload.seq} sent to Claude`);
-          return;
-        }
-      } catch { /* dev server gone: payload stays queued in-page */ }
-    }
+    if (cfg.endpoint) { await post(payload); return; }
     if (cfg.wakeUrl) {
       // Fire-and-forget ping at a session-armed wake listener (Tier 1).
       try { fetch(`${cfg.wakeUrl}?token=${encodeURIComponent(cfg.token || '')}`, { mode: 'no-cors' }); } catch { /* not armed */ }
@@ -458,7 +501,7 @@
   const SECTION = 'color:#7E93A9;text-transform:uppercase;font-size:9.5px;letter-spacing:0.08em;margin:12px 0 3px;border-top:1px solid #1D2836;padding-top:9px';
 
   const isColorish = (v) => /^(#|rgb|oklch|hsl|color\()/i.test(v);
-  const swatch = (v) => isColorish(v)
+  const swatch = (v) => (isColorish(v) && /^[#\w(),.%\s\/-]+$/.test(v))
     ? `<span style="display:inline-block;width:9px;height:9px;border-radius:2px;border:1px solid #2E3E50;background:${esc(v)};margin-right:4px"></span>`
     : '';
 
@@ -627,9 +670,12 @@
     `;
     // position: below the element, flipped above if it would overflow
     card.style.display = 'block';
-    const cw = 340;
+    const cw = Math.min(340, innerWidth - 16);
+    card.style.width = `${cw}px`;
     const ch = card.offsetHeight || 150;
-    let left = Math.min(Math.max(8, r.left), innerWidth - cw - 320);
+    // stay on screen at any width; dodge the side panel only when there is room for both
+    const avoidPanel = innerWidth - cw - 320;
+    let left = Math.max(8, Math.min(r.left, avoidPanel >= 8 ? avoidPanel : innerWidth - cw - 8));
     let top = r.bottom + 8;
     if (top + ch > innerHeight - 48) top = Math.max(8, r.top - ch - 8); // keep clear of the crumb bar
     card.style.left = `${left}px`;
@@ -650,12 +696,23 @@
     const send = () => {
       const instruction = ta.value.trim();
       if (!instruction) { ta.focus(); return; }
-      const payload = buildPayload(target, instruction, scope);
+      let live = target;
+      if (!live.isConnected) {
+        // HMR replaced the subtree while the user typed: re-find by stamp + text
+        const stampSel = target.getAttribute('data-claude-source');
+        const text = (target.textContent || '').trim();
+        live = stampSel
+          ? [...document.querySelectorAll(`[data-claude-source="${CSS.escape(stampSel)}"]`)].find((c) => (c.textContent || '').trim() === text) || null
+          : null;
+        if (!live) { closePrompt(); showToast('The page updated under that selection; select it again.', 5000); return; }
+      }
+      const payload = buildPayload(live, instruction, scope);
       closePrompt();
       deliver(payload);
     };
     card.querySelector('[data-send]').addEventListener('click', send);
     ta.addEventListener('keydown', (e) => {
+      if (e.isComposing) return; // IME: let the composition finish
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
       e.stopPropagation();
     });
@@ -692,7 +749,7 @@
     e.stopImmediatePropagation();
     if (e.type !== 'click') return;
     let t = document.elementFromPoint(e.clientX, e.clientY);
-    if (!t || isOurs(t)) return;
+    if (!t || isOurs(t) || t === document.body || t === document.documentElement) return;
     if (e.altKey) {
       const base = state.selectedEl || state.hoverEl || t;
       t = base.parentElement && base.parentElement !== document.body ? base.parentElement : base;
@@ -707,7 +764,7 @@
       return;
     }
     if (!state.active) return;
-    if (e.key === 'Escape') {
+    if (e.key === 'Escape' && !e.isComposing) {
       e.preventDefault();
       e.stopImmediatePropagation();
       if (state.promptOpen) closePrompt();
@@ -722,7 +779,8 @@
   /* ---------------------------------------------------------------- api --- */
 
   const api = {
-    version: '0.2.0',
+    version: '0.2.1',
+    bootId: Math.random().toString(36).slice(2, 10),
     config: cfg,
     heartbeat: Date.now(),
     enable() {
@@ -752,7 +810,8 @@
     notify(text) { showToast(String(text).slice(0, 300), 6000); },
     select(target) { if (target instanceof Element) { api.enable(); openPrompt(target); } },
     simulate(selector, instruction, scope = 'auto') {
-      const t = document.querySelector(selector);
+      let t;
+      try { t = document.querySelector(selector); } catch (err) { return { error: `invalid selector ${selector}: ${err.message}` }; }
       if (!t) return { error: `no element matches ${selector}` };
       const payload = buildPayload(t, instruction, scope);
       deliver(payload);
@@ -762,5 +821,6 @@
 
   setInterval(() => { api.heartbeat = Date.now(); }, 1000);
   window.__claudeDesign = api;
+  if (cfg.endpoint && state.queue.length) scheduleRetry(); // undelivered from before a reload
   console.log('[design-mode] overlay ready', cfg.endpoint ? '(plugin endpoint)' : '(session mode)');
 })();

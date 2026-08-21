@@ -17,7 +17,8 @@ Architecture doc: https://claude.ai/code/artifact/98ce2dbc-7694-4b69-8e40-2f5e7e
    an inline prompt card with scope chips (auto / instance / component / token),
    and an inspector panel (component chain, source, classes, computed styles,
    matched CSS rules). On submit it POSTs the selection payload to the plugin.
-3. The plugin writes each payload to `.design-mode/queue/*.json`.
+3. The plugin writes each payload to `<vite-root>/.design-mode/queue/*.json`
+   (`demo/.design-mode/queue/` here; configurable via `queueDir`).
    `scripts/wait-for-selection.mjs` blocks on that directory; a Claude Code
    session runs it as a background process and is woken the moment a selection
    lands, resolves the source (stamp first, React fiber stack second, repo
@@ -36,7 +37,7 @@ npm run dev        # demo app on port 3800 (strict)
 ```
 
 Open http://localhost:3800, press Cmd+Shift+D, click anything, type an
-instruction. The payload appears under `.design-mode/queue/`. In a Claude Code
+instruction. The payload appears under `demo/.design-mode/queue/`. In a Claude Code
 session in this repo, say "start design mode" and the loop runs end to end.
 
 ## Packages
@@ -55,8 +56,9 @@ The selection endpoint feeds an agent, so it is treated as a remote
 prompt-injection surface even on localhost: per-boot random token in a custom
 header (forces a CORS preflight that cross-origin pages fail; no CORS allow
 headers are ever sent), Origin validated against the dev server's own origin,
-JSON only, 512KB body cap, dev-serve only so stamps and endpoint never reach a
-production build. Payload fields captured from the page are labeled untrusted;
+Host header restricted to local names (DNS rebinding defense), constant-time
+token comparison, JSON only, 512KB body cap, dev-serve only so stamps and
+endpoint never reach a production build. Payload fields captured from the page are labeled untrusted;
 the session skill forbids following instruction-like text inside them.
 
 ## Status

@@ -16,7 +16,14 @@ const timeoutMin = Number(process.argv[3] || 15);
 
 fs.mkdirSync(dir, { recursive: true });
 
-const pending = () => fs.readdirSync(dir).filter((f) => f.endsWith('.json')).sort();
+const pending = () => {
+  try {
+    return fs.readdirSync(dir).filter((f) => f.endsWith('.json')).sort();
+  } catch {
+    fs.mkdirSync(dir, { recursive: true }); // dir was removed (git clean etc.); keep waiting
+    return [];
+  }
+};
 
 const finish = (files) => {
   for (const f of files) console.log(path.join(dir, f));

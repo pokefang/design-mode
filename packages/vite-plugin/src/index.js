@@ -1,5 +1,5 @@
 import { createRequire } from 'node:module';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { transformSync } from '@babel/core';
@@ -23,13 +23,21 @@ const MAX_BODY = 512 * 1024;
  * Security model for the endpoint: a localhost URL that ultimately feeds an
  * agent is a remote prompt-injection surface, so every request must carry a
  * per-boot random token in a custom header (which also forces a CORS preflight
- * that cross-origin pages fail), and any Origin header must match the dev
- * server's own origin.
+ * that cross-origin pages fail), any Origin header must match the dev
+ * server's own origin, and the Host header must be a local name (so a DNS
+ * rebinding page cannot become same-origin with the dev server and read the
+ * token out of the HTML). Token comparison is constant-time.
+ *
+ * Options:
+ *   queueDir      where selections are written; default <vite-root>/.design-mode/queue
+ *   allowedHosts  extra Host names to accept besides localhost/127.0.0.1/::1/*.localhost
  */
 export default function designMode(options = {}) {
   const token = randomBytes(16).toString('hex');
+  const extraHosts = options.allowedHosts || [];
   let root = process.cwd();
   let queueDir = '';
+  let counter = 0;
 
   const stamp = (code, id) => {
     const [file] = id.split('?');
@@ -54,7 +62,7 @@ export default function designMode(options = {}) {
 
     configResolved(config) {
       root = config.root;
-      queueDir = path.join(root, '.design-mode', 'queue');
+      queueDir = path.resolve(root, options.queueDir || path.join('.design-mode', 'queue'));
     },
 
     transform(code, id) {
@@ -78,6 +86,17 @@ export default function designMode(options = {}) {
       const allowedOrigins = (req) => {
         const host = req.headers.host;
         return host ? [`http://${host}`, `https://${host}`] : [];
+      };
+      const isLocalHost = (host) => {
+        if (!host) return false;
+        const name = host.replace(/:\d+$/, '').replace(/^\[(.*)\]$/, '$1');
+        return name === 'localhost' || name.endsWith('.localhost') || name === '127.0.0.1'
+          || name === '::1' || extraHosts.includes(name);
+      };
+      const tokenMatches = (sent) => {
+        const a = Buffer.from(String(sent || ''));
+        const b = Buffer.from(token);
+        return a.length === b.length && timingSafeEqual(a, b);
       };
 
       server.middlewares.use((req, res, next) => {
@@ -112,13 +131,18 @@ export default function designMode(options = {}) {
           }
           if (req.method !== 'POST') { res.statusCode = 405; res.end(); return; }
 
+          if (!isLocalHost(req.headers.host)) {
+            res.statusCode = 403;
+            res.end('{"error":"host not allowed"}');
+            return;
+          }
           const origin = req.headers.origin;
           if (origin && !allowedOrigins(req).includes(origin)) {
             res.statusCode = 403;
             res.end('{"error":"origin not allowed"}');
             return;
           }
-          if (req.headers['x-design-mode-token'] !== token) {
+          if (!tokenMatches(req.headers['x-design-mode-token'])) {
             res.statusCode = 403;
             res.end('{"error":"bad token"}');
             return;
@@ -150,8 +174,12 @@ export default function designMode(options = {}) {
               res.end('{"error":"missing instruction/seq"}');
               return;
             }
-            const file = path.join(queueDir, `${Date.now()}-${payload.seq}.json`);
-            fs.writeFileSync(file, JSON.stringify(payload, null, 2));
+            // collision-proof, order-stable name; atomic write so the watcher
+            // never wakes on a half-written file
+            counter += 1;
+            const file = path.join(queueDir, `${Date.now()}-${String(counter).padStart(6, '0')}-${randomBytes(3).toString('hex')}.json`);
+            fs.writeFileSync(`${file}.tmp`, JSON.stringify(payload, null, 2));
+            fs.renameSync(`${file}.tmp`, file);
             server.config.logger.info(
               `[design-mode] selection #${payload.seq} -> ${path.relative(root, file)}`,
               { timestamp: true }
