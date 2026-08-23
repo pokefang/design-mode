@@ -45,7 +45,7 @@ npm install
 npm run dev        # demo app on port 3800 (strict)
 ```
 
-Open http://localhost:3800, press Cmd+Shift+D, click anything, type an
+Open http://localhost:3800, press Cmd+D, click anything, type an
 instruction. The payload appears under `demo/.design-mode/queue/`. In a Claude Code
 session in this repo, say "start design mode" and the loop runs end to end.
 

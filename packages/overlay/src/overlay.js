@@ -163,8 +163,8 @@
     .tray-foot select.ctl { width: auto; height: 26px; flex: 1; min-width: 0; }
     .tray-status { color: #9B9B9B; font-size: 10.5px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
     .tray-status button { background: none; border: none; color: #8FB2FF; padding: 0; font-size: 10.5px; }
-    .toast { position: fixed; display: none; pointer-events: none; bottom: 56px; left: 14px; background: #1E1E1E; border: 1px solid #333; border-radius: 8px; padding: 8px 12px; max-width: 46vw; }
-    .pill { position: fixed; display: none; pointer-events: auto; left: 14px; bottom: 14px; align-items: center; gap: 10px; background: #1E1E1E; border: 1px solid #333; border-radius: 99px; padding: 5px 6px 5px 12px; box-shadow: 0 6px 24px rgba(0,0,0,0.35); font-weight: 600; }
+    .toast { position: fixed; display: none; pointer-events: none; bottom: 14px; left: 14px; background: #1E1E1E; border: 1px solid #333; border-radius: 8px; padding: 8px 12px; max-width: 46vw; }
+    .pill { position: fixed; display: none; pointer-events: auto; top: 12px; right: 12px; align-items: center; gap: 10px; background: #1E1E1E; border: 1px solid #333; border-radius: 99px; padding: 5px 6px 5px 12px; box-shadow: 0 6px 24px rgba(0,0,0,0.35); font-weight: 600; }
     .pill .muted { color: #9B9B9B; font-weight: 400; }
     .hdr-btns { margin-left: auto; display: flex; align-items: center; gap: 4px; flex: none; }
     .kbtn { flex: none; height: 20px; display: inline-flex; align-items: center; font: 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.02em; padding: 0 6px; border-radius: 4px; border: 1px solid #3A3A3A; border-bottom-width: 2px; background: #2B2B2B; color: #9B9B9B; }
@@ -1329,7 +1329,7 @@
   };
 
   const onKey = (e) => {
-    if (cfg.hotkey && (e.metaKey || e.ctrlKey) && e.shiftKey && e.code === 'KeyD') {
+    if (cfg.hotkey && (e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.code === 'KeyD') {
       e.preventDefault();
       api.toggle();
       return;
@@ -1368,7 +1368,6 @@
       ensureMounted();
       state.active = true;
       syncPill();
-      showToast('Design Mode on. Click an element; Esc to exit.');
     },
     disable() {
       state.active = false;
@@ -1378,7 +1377,6 @@
       hi.style.display = 'none';
       hiLabel.style.display = 'none';
       syncPill();
-      showToast('Design Mode off.');
     },
     toggle() { state.active ? api.disable() : api.enable(); },
     isActive() { return state.active; },

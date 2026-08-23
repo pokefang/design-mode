@@ -6,7 +6,7 @@ description: Run the Design Mode loop - launch the app in the Browser pane, arm 
 # Design Mode session loop
 
 The dev server's Design Mode plugin serves an inspector overlay on every page
-load. The user toggles it with Cmd+Shift+D, clicks an element, and types an
+load. The user toggles it with Cmd+D, clicks an element, and types an
 instruction. The overlay POSTs a payload to the dev server, which writes it to
 `<vite-root>/.design-mode/queue/*.json` (for the demo that is
 `demo/.design-mode/queue/`; the plugin's `queueDir` option moves it). Your job
@@ -18,7 +18,7 @@ is the other half of the loop.
 2. Arm the wake watcher as a **background** Bash process:
    `node scripts/wait-for-selection.mjs /Users/fang/GitHub/design-mode/demo/.design-mode/queue`
    It exits when a selection lands, which re-invokes you. On any non-zero exit (2 = timeout), re-arm it.
-3. Tell the user Design Mode is armed and how to toggle it (Cmd+Shift+D in the app page).
+3. Tell the user Design Mode is armed and how to toggle it (Cmd+D in the app page).
 
 ## Per selection (each time the watcher wakes you)
 
