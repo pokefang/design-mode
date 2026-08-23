@@ -156,6 +156,9 @@
     .bx:hover { background: #2F2F2F; }
     .bx:focus { background: #2F2F2F; box-shadow: inset 0 0 0 1px #0C8CE9; }
     .bx.mod { color: #8FB2FF; }
+    .bx, .ctl.num, .ctl.scale { cursor: ew-resize; }
+    .bx:focus, .ctl.num:focus, .ctl.scale:focus { cursor: text; }
+    .scrubbing, .scrubbing * { user-select: none !important; cursor: ew-resize !important; }
     .bx.t { top: 2px; left: 50%; transform: translateX(-50%); }
     .bx.b { bottom: 2px; left: 50%; transform: translateX(-50%); }
     .bx.l { left: 2px; top: 50%; transform: translateY(-50%); }
@@ -585,7 +588,7 @@
       color: pick(/^--color-/),
       fontFamily: pick(/^--font-(?!weight-)[a-z]/),
       fontWeight: pick(/^--font-weight-/),
-      fontSize: pick(/^--text-(?!.*--)/),
+      fontSize: pick(/^--text-(?!shadow-)(?!.*--)/),
       lineHeight: pick(/^--leading-/),
       tracking: pick(/^--tracking-/),
       radius: pick(/^--radius-/),
@@ -1139,6 +1142,45 @@
     return seg;
   };
 
+  // Click-and-drag scrubbing on a value field. A press without movement is a click
+  // (onClick: focus + reveal options); movement scrubs: onDelta(steps) gets the whole
+  // offset since the press in steps of `step` screen px (Shift multiplies by 4).
+  // A field that already has focus keeps native caret/selection behavior.
+  const scrub = (inp, { step = 1, onDelta, onClick, onEnd }) => {
+    let st = null;
+    inp.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0 || shadow.activeElement === inp) return;
+      e.preventDefault();
+      st = { x: e.clientX, moved: false, id: e.pointerId, last: 0 };
+      try { inp.setPointerCapture(e.pointerId); } catch { /* fine */ }
+    });
+    inp.addEventListener('mousedown', (e) => { if (st) e.preventDefault(); });
+    inp.addEventListener('pointermove', (e) => {
+      if (!st || e.pointerId !== st.id) return;
+      const dx = e.clientX - st.x;
+      if (!st.moved && Math.abs(dx) > 3) { st.moved = true; inp.classList.add('scrubbing'); panel.classList.add('scrubbing'); closeDropdown(); }
+      if (!st.moved) return;
+      const steps = Math.trunc(dx / step) * (e.shiftKey ? 4 : 1);
+      if (steps !== st.last) { st.last = steps; onDelta(steps); }
+    });
+    const end = (e) => {
+      if (!st || (e && e.pointerId !== st.id)) return;
+      const { moved } = st;
+      st = null;
+      inp.classList.remove('scrubbing');
+      panel.classList.remove('scrubbing');
+      if (moved) { if (onEnd) onEnd(); } else if (onClick) onClick();
+    };
+    inp.addEventListener('pointerup', end);
+    inp.addEventListener('pointercancel', end);
+  };
+
+  // Tailwind's conventional spacing scale, offered as options for px fields
+  const SPACING_SCALE = [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64, 72, 80, 96];
+  const spacingItems = () => { const b = spacingBasePx(); return SPACING_SCALE.map((n) => ({ value: n * b, label: `spacing × ${n}`, primitive: `${Math.round(n * b)}px` })); };
+  const openNumericOptions = (inp, items, currentValue, onPick) =>
+    openDropdown({ anchor: inp, items, current: currentValue, onPick: (it) => { onPick(it.value); closeDropdown(); inp.blur(); } });
+
   // px-valued field that previews in framework spacing units (px / --spacing)
   const toUnits = (px) => Math.round((px / spacingBasePx()) * 4) / 4;
   const previewSpacingPx = (prop, px) => {
@@ -1167,7 +1209,22 @@
       const t = sideTrace(prop);
       inp.title = `${prop}: ${px}px = spacing × ${toUnits(px)}${t ? ' · ' + tipFor(t) : ''}`;
       const reset = () => { inp.value = String(px); };
-      inp.addEventListener('focus', () => inp.select());
+      const startPx = () => Math.round(parseFloat(getComputedStyle(state.selectedEl).getPropertyValue(prop)) || 0);
+      const setPx = (v) => {
+        const vv = allowNegative ? v : Math.max(0, v);
+        previewSpacingPx(prop, vv);
+        inp.value = String(Math.round(toUnits(vv) * spacingBasePx()));
+        inp.classList.add('mod');
+      };
+      let scrubBase = 0;
+      scrub(inp, {
+        step: 1,
+        onDelta: (steps) => setPx(scrubBase + steps),
+        onClick: () => { inp.focus(); inp.select(); openNumericOptions(inp, spacingItems(), Math.round(parseFloat(inp.value) || 0), (v) => setPx(v)); },
+      });
+      inp.addEventListener('pointerdown', () => { scrubBase = startPx(); }, true);
+      inp.addEventListener('dblclick', (e) => { e.preventDefault(); revertProps([prop]); });
+      inp.addEventListener('input', () => { if (dd && dd.anchor === inp) dd.setFilter(inp.value); });
       inp.addEventListener('keydown', (e) => {
         e.stopPropagation();
         if (e.key === 'Enter') { e.preventDefault(); inp.blur(); }
@@ -1183,10 +1240,7 @@
       inp.addEventListener('change', () => {
         const parsed = parseFloat(inp.value);
         if (inp.value.trim() === '' || Number.isNaN(parsed)) { reset(); return; }
-        const v = allowNegative ? parsed : Math.max(0, parsed);
-        previewSpacingPx(prop, v);
-        inp.value = String(Math.round(toUnits(v) * spacingBasePx()));
-        inp.classList.add('mod');
+        setPx(parsed);
       });
       return inp;
     };
@@ -1222,6 +1276,8 @@
 
   const tipFor = (t) => t ? `${t.authored}${t.from ? ' · ' + t.from : ''}${t.chain.length ? ' · ' + t.chain.map((c) => c.name).join(' → ') + ' → ' + primitiveOf(t) : ''}` : 'not authored (inherited or default)';
 
+  const SCALE_KEYS = new Set(['fontSize', 'fontWeight', 'lineHeight', 'tracking', 'radius', 'shadow']);
+
   // Token picker: a text field with an in-panel dropdown of the page's tokens of one
   // family (swatch + primitive shown). Picking or typing a token previews var(--token);
   // any other text previews the literal and flags it hardcoded.
@@ -1246,6 +1302,11 @@
       ...Object.entries(special || {}).map(([k, v]) => ({ value: k, label: k, primitive: v.css })),
       ...names.map((n) => { const prim = resolveVar(n, state.selectedEl); return { value: n.replace(/^--/, ''), label: n.replace(/^--/, ''), primitive: prim, swatch: swatch ? prim : null }; }),
     ];
+    // scales list (and scrub) by value, not by name: xs, sm, base, lg, xl, 2xl...
+    if (SCALE_KEYS.has(key)) {
+      const num = (v) => { const m = /^(-?[\d.]+)(rem|em|px|%)?$/.exec(String(v || '').trim()); if (!m) return null; const n = parseFloat(m[1]); return m[2] === 'rem' || m[2] === 'em' ? n * 16 : n; };
+      if (items.filter((it) => num(it.primitive) !== null).length >= 2) items.sort((a, b) => (num(a.primitive) ?? Infinity) - (num(b.primitive) ?? Infinity));
+    }
     const commit = (rawIn) => {
       const raw = rawIn.trim();
       if (!raw || raw === current) { inp.value = current; return; }
@@ -1267,6 +1328,21 @@
     const open = () => openDropdown({ anchor: inp, items, current, onPick: (it) => { inp.value = it.value; commit(it.value); closeDropdown(); inp.blur(); } });
     inp.addEventListener('focus', () => { if (!mine()) open(); });
     inp.addEventListener('click', () => { if (!mine()) open(); });
+    inp.addEventListener('dblclick', (e) => { e.preventDefault(); closeDropdown(); revertProps([prop]); });
+    // ordered scales scrub: drag steps through the family (text-sm -> text-base -> text-lg)
+    if (SCALE_KEYS.has(key) && items.length > 1) {
+      inp.classList.add('scale');
+      let base = 0;
+      inp.addEventListener('pointerdown', () => { base = Math.max(0, items.findIndex((it) => it.value === current)); }, true);
+      scrub(inp, {
+        step: 14,
+        onDelta: (steps) => {
+          const it = items[Math.min(items.length - 1, Math.max(0, base + steps))];
+          if (it && it.value !== inp.value) { inp.value = it.value; commit(it.value); }
+        },
+        onClick: () => { inp.focus(); if (!mine()) open(); },
+      });
+    }
     inp.addEventListener('input', () => { if (!mine()) open(); dd.setFilter(inp.value); });
     inp.addEventListener('change', () => commit(inp.value));
     inp.addEventListener('keydown', (e) => {
@@ -1326,21 +1402,32 @@
     const raw = cs.getPropertyValue(`${prop}-start`) || cs.getPropertyValue(prop) || '0';
     const px = Math.round(parseFloat(raw) || 0);
     const wrap = mk('unit');
-    const inp = mk('ctl', 'input');
-    inp.type = 'number';
-    inp.step = String(base);
-    inp.min = '0';
+    const inp = mk('ctl num', 'input');
+    inp.type = 'text';
+    inp.inputMode = 'numeric';
     inp.value = String(px);
     const u = mk('u', 'span');
     u.textContent = `px · ×${toUnits(px)}`;
     fieldKeys(inp, () => { inp.value = String(px); });
-    inp.addEventListener('change', () => {
-      const parsed = parseFloat(inp.value);
-      if (inp.value.trim() === '' || Number.isNaN(parsed)) { inp.value = String(px); return; } // blank or junk: leave it alone
-      const v = Math.max(0, parsed);
+    const setPx = (vIn) => {
+      const v = Math.max(0, vIn);
       previewSpacingPx(prop, v);
       inp.value = String(Math.round(toUnits(v) * base));
       u.textContent = `px · ×${toUnits(v)}`;
+    };
+    let scrubBase = 0;
+    inp.addEventListener('pointerdown', () => { scrubBase = Math.round(parseFloat(inp.value) || 0); }, true);
+    scrub(inp, {
+      step: 1,
+      onDelta: (steps) => setPx(scrubBase + steps),
+      onClick: () => { inp.focus(); inp.select(); openNumericOptions(inp, spacingItems(), Math.round(parseFloat(inp.value) || 0), setPx); },
+    });
+    inp.addEventListener('dblclick', (e) => { e.preventDefault(); revertProps([prop]); });
+    inp.addEventListener('input', () => { if (dd && dd.anchor === inp) dd.setFilter(inp.value); });
+    inp.addEventListener('change', () => {
+      const parsed = parseFloat(inp.value);
+      if (inp.value.trim() === '' || Number.isNaN(parsed)) { inp.value = String(px); return; } // blank or junk: leave it alone
+      setPx(parsed);
     });
     wrap.append(inp, u);
     const t = state.traces[prop];
@@ -1533,7 +1620,7 @@
     const spacing = [boxModel(cs, r)];
     const typography = [
       tk('Font', { prop: 'font-family', family: /^--font-(?!weight-)/, key: 'fontFamily' }),
-      tk('Size', { prop: 'font-size', family: /^--text-(?!.*--)/, key: 'fontSize' }),
+      tk('Size', { prop: 'font-size', family: /^--text-(?!shadow-)(?!.*--)/, key: 'fontSize' }),
       tk('Weight', { prop: 'font-weight', family: /^--font-weight-/, key: 'fontWeight' }),
       tk('Leading', { prop: 'line-height', family: /^--leading-|^--text-.*--line-height$/, key: 'lineHeight' }),
       tk('Tracking', { prop: 'letter-spacing', family: /^--tracking-/, key: 'tracking' }),
@@ -1542,15 +1629,29 @@
         { value: 'left', icon: 't-left' }, { value: 'center', icon: 't-center' }, { value: 'right', icon: 't-right' }, { value: 'justify', icon: 't-justify' },
       ] }), { props: ['text-align'] }),
     ];
-    const opacityIn = mk('ctl', 'input');
-    opacityIn.type = 'number'; opacityIn.min = '0'; opacityIn.max = '100'; opacityIn.step = '5';
-    opacityIn.value = String(Math.round(parseFloat(cs.opacity) * 100));
-    fieldKeys(opacityIn, () => { opacityIn.value = String(Math.round(parseFloat(cs.opacity) * 100)); });
+    const opacityIn = mk('ctl num', 'input');
+    opacityIn.type = 'text'; opacityIn.inputMode = 'numeric';
+    const opStart = () => Math.round(parseFloat(getComputedStyle(state.selectedEl).opacity) * 100);
+    opacityIn.value = String(opStart());
+    fieldKeys(opacityIn, () => { opacityIn.value = String(opStart()); });
+    const setOpacity = (vIn) => {
+      const v = Math.min(100, Math.max(0, Math.round(vIn)));
+      applyPreview('opacity', String(v / 100), { label: `${v}%`, primitive: String(v / 100), system: true });
+      opacityIn.value = String(v);
+    };
+    let opBase = 100;
+    opacityIn.addEventListener('pointerdown', () => { opBase = opStart(); }, true);
+    scrub(opacityIn, {
+      step: 2,
+      onDelta: (steps) => setOpacity(opBase + steps),
+      onClick: () => { opacityIn.focus(); opacityIn.select(); openNumericOptions(opacityIn, [0, 5, 10, 20, 25, 30, 40, 50, 60, 70, 75, 80, 90, 95, 100].map((v) => ({ value: v, label: `${v}%` })), opStart(), setOpacity); },
+    });
+    opacityIn.addEventListener('dblclick', (e) => { e.preventDefault(); revertProps(['opacity']); });
+    opacityIn.addEventListener('input', () => { if (dd && dd.anchor === opacityIn) dd.setFilter(opacityIn.value); });
     opacityIn.addEventListener('change', () => {
       const parsed = parseFloat(opacityIn.value);
-      if (opacityIn.value.trim() === '' || Number.isNaN(parsed)) { opacityIn.value = String(Math.round(parseFloat(cs.opacity) * 100)); return; }
-      const v = Math.min(100, Math.max(0, parsed));
-      applyPreview('opacity', String(v / 100), { label: `${v}%`, primitive: String(v / 100), system: true });
+      if (opacityIn.value.trim() === '' || Number.isNaN(parsed)) { opacityIn.value = String(opStart()); return; }
+      setOpacity(parsed);
     });
     const opWrap = mk('unit'); const pct = mk('u', 'span'); pct.textContent = '%'; opWrap.append(opacityIn, pct);
     const appearance = [
