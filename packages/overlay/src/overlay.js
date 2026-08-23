@@ -117,6 +117,7 @@
     .btn.primary:hover { background: #1D97F0; }
     .btn.ghost { background: transparent; }
     .btn.sm { height: 22px; padding: 0 8px; font-size: 10.5px; }
+    .btn.full { width: 100%; margin-top: 8px; }
     .panel { position: fixed; top: 12px; right: 12px; bottom: 12px; width: 284px; display: none; flex-direction: column; pointer-events: auto; background: #1E1E1E; border: 1px solid #333; border-radius: 10px; box-shadow: 0 16px 48px rgba(0,0,0,0.5); overflow: hidden; }
     .panel-scroll { flex: 1; overflow: auto; padding: 12px 12px 10px; }
     .p-title { font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 6px; min-width: 0; }
@@ -794,20 +795,18 @@
       const count = mk('count', 'span');
       count.innerHTML = `${n} change${n > 1 ? 's' : ''}${hard ? ` <span class="dot" title="hardcoded values"></span>` : ''}`;
       count.title = hard ? `${hard} hardcoded value${hard > 1 ? 's' : ''}` : 'previewing on the page';
-      const actions = mk('tray-actions');
-      const discard = mk('btn ghost', 'button');
+      const discard = mk('btn sm ghost', 'button');
       discard.textContent = 'Discard';
       discard.addEventListener('click', discardAll);
-      const commit = mk('btn primary', 'button');
+      h.append(count, discard);
+      const commit = mk('btn primary full', 'button');
       commit.textContent = 'Ask Claude to commit';
       commit.addEventListener('click', openCommitModal);
-      actions.append(discard, commit);
-      h.append(count, actions);
-      tray.append(h);
+      tray.append(h, commit);
     }
     if (committed) {
       const st = mk('tray-status');
-      st.innerHTML = `<span>${committed} sent · previewing until Claude applies</span>`;
+      st.innerHTML = `<span title="Previews stay on the page until Claude applies the edits">${committed} sent · previewing</span>`;
       const clear = document.createElement('button');
       clear.textContent = 'Clear previews';
       clear.addEventListener('click', clearPreviews);
