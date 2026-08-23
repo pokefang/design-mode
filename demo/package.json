@@ -13,9 +13,9 @@
     "react-dom": "^19.2.0"
   },
   "devDependencies": {
-    "@design-mode/vite-plugin": "*",
     "@tailwindcss/vite": "^4.1.0",
     "@vitejs/plugin-react": "^5.0.0",
+    "claude-design-mode": "*",
     "tailwindcss": "^4.1.0",
     "vite": "^7.0.0"
   }

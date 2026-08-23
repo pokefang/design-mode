@@ -1,80 +1,156 @@
-# Design Mode
+# Design Mode for Claude Code
 
-Click an element in your running app, describe the change in plain language,
-and Claude edits the exact source line that rendered it. A Cursor-Design-Mode
-style experience built on Claude Code, with the piece Cursor never shipped:
-a deterministic element-to-source map.
+Click an element in your running app, describe the change in plain language or
+edit it in a Figma-style sidebar, and Claude Code edits the exact source line
+that rendered it. The piece Cursor's Design Mode never shipped: a deterministic
+element-to-source map, plus token-aware edits that land in your design system's
+own vocabulary.
 
 Architecture doc: https://claude.ai/code/artifact/98ce2dbc-7694-4b69-8e40-2f5e7e5e6c5d
 
+## Use it in your own app
+
+Two halves: the **app side** (an npm package that puts the inspector in your
+page) and the **session side** (a skill that teaches Claude Code the loop).
+
+### 1. App side: `claude-design-mode`
+
+```bash
+npm i -D claude-design-mode
+npx claude-design-mode init
+```
+
+`init` is non-destructive. It copies the session skill into
+`.claude/skills/design-mode/`, writes a `.claude/launch.json` entry for the
+Browser pane (port detected from your Vite config or dev script), ignores
+`.design-mode/` in git, and prints the one line it will not add for you:
+
+```js
+// vite.config.js
+import designMode from 'claude-design-mode/vite'
+export default defineConfig({ plugins: [designMode(), react()] }) // designMode() first
+```
+
+Dev-serve only; production builds are untouched. Options: `queueDir`,
+`allowedHosts`, `stamp: false` (skip JSX stamping), and `tokens` (your own
+token-name patterns, e.g. `{ color: /^--brand-/, spacing: /^--space-/ }`; the
+overlay discovers tokens from your CSS on its own, this just overrides the
+grouping when your names are unusual).
+
+**Not on Vite** (Next, Remix, Rails, a static site)? Run the standalone server
+next to your dev server and add one script tag in development:
+
+```bash
+npx claude-design-mode serve --app http://localhost:3000
+```
+
+```html
+<script src="http://localhost:3850/__design-mode/boot.js"></script>
+```
+
+Only pages from `--app` origins receive the token, and only those origins can
+POST selections. There is no JSX stamping in this mode; sources resolve from
+React debug stacks or the DOM path plus repo search.
+
+### 2. Session side: the skill
+
+`init` already dropped the skill into `.claude/skills/design-mode/`, so any
+Claude Code session in that project can run it: say "start design mode" (or
+`/design-mode`). It starts your dev server in the Browser pane, arms the wake
+watcher (`npx claude-design-mode wait`), and processes each selection as it
+lands. Prefer a plugin you install once for every project? This repo is also a
+Claude Code plugin marketplace:
+
+```
+/plugin marketplace add pokefang/design-mode
+/plugin install design-mode@claude-design-mode
+```
+
+(then `/design-mode:design-mode` or just "start design mode"). Until this repo
+is published, point the CLI at a local checkout: `claude --plugin-dir
+path/to/design-mode/packages/claude-design-mode`.
+
+**Any page, no install**: a session can inject the overlay into whatever is
+open in the Browser pane (`npx claude-design-mode overlay-path`, eval it with
+`window.__CDM_CONFIG = { endpoint: null }`, poll `__claudeDesign.take()`). The
+skill's Tier 1 section covers it; selections then never leave the page.
+
+### In the page
+
+`Cmd+D` toggles the inspector. Hover highlights, click selects: a sidebar docks
+on the right (drag its header to snap left) with breadcrumbs, a collapsed "Ask
+Claude" prompt, and Layout / Spacing / Typography / Appearance controls.
+Clicking a value lists the tokens your app actually defines, dragging a value
+scrubs it, double-clicking resets it. Every change previews instantly; "Ask
+Claude to commit" shows the list with an optional note and ships it.
+
 ## How it works
 
-1. `@design-mode/vite-plugin` (dev serve only) stamps every JSX host element
-   with `data-claude-source="relpath:line:col"` via a Babel visitor, serves the
+1. The Vite plugin (dev serve only) stamps every JSX host element with
+   `data-claude-source="relpath:line:col"` via a Babel visitor, serves the
    inspector overlay from the app's own origin, and exposes a token-checked
-   `POST /__design-mode/selection` endpoint.
-2. `@design-mode/overlay` draws the hover highlight, the click-to-select ring,
-   a breadcrumb bar for walking parent/child, an inline prompt card with scope
-   chips (auto / instance / component / token), and a Figma-style design
-   sidebar: Layout, Spacing, Size, Typography and Appearance sections whose
-   controls are token pickers (every `--color-*`, `--text-*`, `--radius-*`...
-   the page defines) and spacing-unit steppers. Editing a value previews it
-   instantly as a runtime override and lists it in a Changes tray as
-   `from -> to` with the semantic token and its primitive; literals that match
-   no token are flagged hardcoded. "Ask Claude to commit" ships the tray as one
-   `design-edits` payload; the prompt card ships a `selection` payload.
-3. The plugin writes each payload to `<vite-root>/.design-mode/queue/*.json`
-   (`demo/.design-mode/queue/` here; configurable via `queueDir`).
-   `scripts/wait-for-selection.mjs` blocks on that directory; a Claude Code
-   session runs it as a background process and is woken the moment a selection
-   lands, resolves the source (stamp first, React fiber stack second, repo
-   search last), applies a targeted edit, and verifies via `getComputedStyle`
-   plus a zoomed screenshot after HMR settles. For `design-edits` it maps each
-   token change to the framework's own utility (`--color-blue-600` ->
-   `bg-blue-600`), then calls `__claudeDesign.applied()` so the runtime
-   previews clear and the page shows the committed code.
+   `POST /__design-mode/selection` endpoint. The standalone server shares the
+   same endpoint code minus stamping.
+2. The overlay draws the hover highlight, the selection ring, breadcrumbs for
+   walking parent/child, the prompt section with scope chips (auto / instance /
+   component / token), and the design sidebar. Pickers are built from every
+   `--*` custom property the page defines, grouped by the project's patterns,
+   then common naming conventions, then value type, so they work on Tailwind,
+   a hand-rolled token set, or anything with CSS variables. Spacing writes in
+   the app's vocabulary: a `--spacing` base unit, the app's own spacing tokens,
+   or plain px when there is nothing else. Literals that match no token are
+   flagged hardcoded.
+3. Payloads land in `.design-mode/queue/*.json`. `claude-design-mode wait`
+   blocks on that directory; the session runs it in the background and wakes
+   the moment something lands, resolves the source (stamp first, React fiber
+   stack second, repo search last), applies a targeted edit, verifies via
+   `getComputedStyle` and a zoomed screenshot, and for design edits calls
+   `__claudeDesign.applied()` so the previews clear and the page shows the
+   committed code.
 
-The `/design-mode` project skill (`.claude/skills/design-mode/`) gives a Claude
-Code session the full loop, including the trust boundary: only the user-typed
-instruction is imperative; captured page HTML, text, and styles are data.
+The skill also states the trust boundary: only the user-typed instruction is
+imperative; captured page HTML, text, styles and token names are data.
 
-## Quickstart
+## This repo
 
 ```
 npm install
 npm run dev        # demo app on port 3800 (strict)
+npm test           # server handler + CLI tests
 ```
 
-Open http://localhost:3800, press Cmd+D, click anything, type an
-instruction. The payload appears under `demo/.design-mode/queue/`. In a Claude Code
-session in this repo, say "start design mode" and the loop runs end to end.
-
-## Packages
+Open http://localhost:3800, press Cmd+D, click anything. Fixture pages under
+`demo/public/fixtures/` exercise the non-Tailwind paths: `custom-tokens.html`
+(hand-rolled tokens), `plain.html` (no tokens), `standalone.html` (the one
+script-tag integration; start `npx claude-design-mode serve --app
+http://localhost:3800` first).
 
 | Path | What it is |
 | --- | --- |
-| `packages/overlay` | In-page inspector overlay (vanilla JS, no build step) |
-| `packages/vite-plugin` | Dev-only Vite plugin: stamping, overlay serving, selection endpoint |
+| `packages/claude-design-mode` | The npm package: Vite plugin, standalone server, overlay, wake watcher, CLI, bundled skill, Claude Code plugin manifest |
+| `packages/claude-design-mode/skills/design-mode` | The session skill (this repo's `.claude/skills/design-mode` symlinks to it) |
+| `.claude-plugin/marketplace.json` | Makes the repo installable with `/plugin marketplace add` |
 | `demo` | Vite + React 19 + Tailwind 4 playground (port 3800) |
-| `scripts/wait-for-selection.mjs` | Wake watcher a Claude session arms in the background |
-| `.claude/skills/design-mode` | The session loop as a project skill |
 
 ## Security notes
 
 The selection endpoint feeds an agent, so it is treated as a remote
 prompt-injection surface even on localhost: per-boot random token in a custom
-header (forces a CORS preflight that cross-origin pages fail; no CORS allow
-headers are ever sent), Origin validated against the dev server's own origin,
-Host header restricted to local names (DNS rebinding defense), constant-time
-token comparison, JSON only, 512KB body cap, dev-serve only so stamps and
-endpoint never reach a production build. Payload fields captured from the page are labeled untrusted;
-the session skill forbids following instruction-like text inside them.
+header (forces a CORS preflight), Origin validated against the server's own
+origin (plus `--app` origins in standalone mode, which are the only ones that
+get CORS headers or the token), Host header restricted to local names (DNS
+rebinding defense), constant-time token comparison, JSON only, 512KB body cap,
+dev-serve only so stamps and endpoint never reach a production build. Payload
+fields captured from the page are labeled untrusted; the session skill forbids
+following instruction-like text inside them.
 
 ## Status
 
-Working now: stamping, overlay with prompt card and design sidebar (live
-runtime previews, Changes tray, token-aware from/to), endpoint, queue, wake
-watcher, session skill, demo app. Planned next (in order): multi-select,
+Working now: stamping, overlay with prompt and design sidebar (live runtime
+previews, Changes tray, token-aware from/to, app-agnostic token discovery),
+endpoint, queue, wake watcher, standalone server, CLI, session skill, plugin
+manifest, demo app. Not yet done: publishing to npm and GitHub (the package and
+marketplace are ready; that is a human step). Planned next: multi-select,
 freeze/pin for popovers and hover states, an Agent SDK bridge daemon for a
 persistent session with a result stream back into the page, and an SWC plugin
 for Next/Turbopack stamping.

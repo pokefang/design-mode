@@ -1,0 +1,12 @@
+{
+  "name": "claude-design-mode",
+  "owner": { "name": "Billy Mangino" },
+  "description": "Design Mode for Claude Code: click an element in your running app and edit it with precision.",
+  "plugins": [
+    {
+      "name": "design-mode",
+      "source": "./packages/claude-design-mode",
+      "description": "In-page inspector + session skill. Pair with the claude-design-mode npm package in your app."
+    }
+  ]
+}

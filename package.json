@@ -9,7 +9,8 @@
   ],
   "scripts": {
     "dev": "npm run dev -w demo",
-    "build": "npm run build -w demo"
+    "build": "npm run build -w demo",
+    "test": "node --test 'packages/claude-design-mode/test/*.test.mjs'"
   },
   "engines": {
     "node": ">=20"

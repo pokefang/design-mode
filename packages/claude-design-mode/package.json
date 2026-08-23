@@ -1,0 +1,40 @@
+{
+  "name": "claude-design-mode",
+  "version": "0.4.0",
+  "type": "module",
+  "description": "Click an element in your running app, describe the change or edit it in a Figma-style sidebar, and Claude Code edits the exact source line. Vite plugin + in-page overlay + session skill + wake watcher.",
+  "license": "MIT",
+  "keywords": ["claude", "claude-code", "design-mode", "vite-plugin", "inspector", "devtools"],
+  "bin": {
+    "claude-design-mode": "bin/cli.mjs"
+  },
+  "exports": {
+    ".": "./src/vite.js",
+    "./vite": "./src/vite.js",
+    "./server": "./src/server.js",
+    "./overlay": "./src/overlay.js",
+    "./overlay.js": "./src/overlay.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "bin",
+    "src",
+    "skills",
+    ".claude-plugin",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "peerDependencies": {
+    "vite": ">=5"
+  },
+  "peerDependenciesMeta": {
+    "vite": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "@babel/core": "^7.26.0"
+  }
+}

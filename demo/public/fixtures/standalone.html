@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Fixture: standalone server (one script tag)</title>
+<style>
+  :root { --space-2: 8px; --space-4: 16px; --accent: #7c3aed; }
+  body { margin: 0; font-family: system-ui, sans-serif; padding: var(--space-4); }
+  .cta { background: var(--accent); color: #fff; border: 0; padding: var(--space-2) var(--space-4); border-radius: 8px; }
+</style>
+<!-- Any dev server, any framework: this is the whole integration.
+     Run `npx claude-design-mode serve --app http://localhost:3800` first. -->
+<script src="http://localhost:3850/__design-mode/boot.js"></script>
+</head>
+<body>
+  <h1>Standalone mode</h1>
+  <p>The overlay and the selection endpoint come from a separate local server.</p>
+  <button class="cta">Call to action</button>
+</body>
+</html>
