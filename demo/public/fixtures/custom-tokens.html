@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Fixture: hand-rolled tokens (no framework)</title>
+<style>
+  :root {
+    /* an app that names things its own way: nothing here is Tailwind */
+    --brand-ink: #1b1f2a;
+    --brand-paper: #fbfaf7;
+    --brand-sea: #0e7c86;
+    --brand-coral: #e4573d;
+    --muted: #6b7280;
+    --space-1: 0.25rem;
+    --space-2: 0.5rem;
+    --space-3: 0.75rem;
+    --space-4: 1rem;
+    --space-6: 1.5rem;
+    --space-8: 2rem;
+    --type-sm: 0.875rem;
+    --type-md: 1rem;
+    --type-lg: 1.25rem;
+    --type-xl: 1.75rem;
+    --lh-tight: 1.2;
+    --lh-body: 1.55;
+    --fw-regular: 400;
+    --fw-bold: 700;
+    --corner-sm: 4px;
+    --corner-lg: 14px;
+    --elevation-1: 0 1px 2px rgb(0 0 0 / 0.12);
+    --elevation-2: 0 6px 18px rgb(0 0 0 / 0.16);
+    --ff-body: "Inter", system-ui, sans-serif;
+    --ff-display: "Fraunces", Georgia, serif;
+    --ls-wide: 0.08em;
+  }
+  body { margin: 0; font-family: var(--ff-body); background: var(--brand-paper); color: var(--brand-ink); line-height: var(--lh-body); }
+  main { max-width: 640px; margin: 0 auto; padding: var(--space-8) var(--space-4); }
+  h1 { font-family: var(--ff-display); font-size: var(--type-xl); line-height: var(--lh-tight); margin: 0 0 var(--space-3); }
+  p { font-size: var(--type-md); color: var(--muted); margin: 0 0 var(--space-6); }
+  .card { background: #fff; border-radius: var(--corner-lg); box-shadow: var(--elevation-1); padding: var(--space-6); display: flex; gap: var(--space-4); align-items: center; }
+  .btn { font: inherit; font-weight: var(--fw-bold); font-size: var(--type-sm); letter-spacing: var(--ls-wide); text-transform: uppercase; color: #fff; background: var(--brand-sea); border: 0; border-radius: var(--corner-sm); padding: var(--space-2) var(--space-4); cursor: pointer; }
+  .btn.alt { background: var(--brand-coral); }
+</style>
+<script>window.__CDM_CONFIG = { endpoint: null };</script>
+<script src="/__design-mode/overlay.js" defer></script>
+</head>
+<body>
+<main>
+  <h1>Hand-rolled tokens</h1>
+  <p>No Tailwind, no framework. Design Mode should still find the colors, type scale, spacing, radii and shadows this page defines.</p>
+  <div class="card">
+    <button class="btn">Primary</button>
+    <button class="btn alt">Alternate</button>
+  </div>
+</main>
+</body>
+</html>

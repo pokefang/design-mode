@@ -48,7 +48,17 @@ one payload with `targets[]`, each carrying the element context plus `edits[]`
 of `{ prop, from: { token, label, primitive }, to: { css, token, label, primitive, hardcoded } }`.
 `from`/`to` are authoritative (the element's live styles are the preview).
 
-Translate each edit into source, preferring the framework's own layer. Tailwind v4 mapping:
+Translate each edit into source, preferring the app's own layer. The overlay
+discovers tokens from whatever CSS the page defines (Tailwind theme variables,
+a hand-rolled `--brand-*` / `--space-*` set, anything with `--custom-properties`),
+so `to.token` is always a name that exists in the project: grep for it to find
+the theme file. Spacing arrives one of three ways: `to.label` `spacing × n`
+(the app has a Tailwind-style `--spacing` base), `to.token` such as `--space-4`
+(the app's own spacing tokens), or a plain px value (`to.css` `12px`, no spacing
+system in the page). Write each in the idiom the project already uses.
+
+For plain CSS or CSS Modules projects, edit the rule `matchedRules` points at and
+keep using `var(--token)` when `to.token` is set. Tailwind v4 mapping:
 
 | prop | to.token / to.label | class |
 | --- | --- | --- |

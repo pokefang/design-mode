@@ -31,10 +31,21 @@ const MAX_BODY = 512 * 1024;
  * Options:
  *   queueDir      where selections are written; default <vite-root>/.design-mode/queue
  *   allowedHosts  extra Host names to accept besides localhost/127.0.0.1/::1/*.localhost
+ *   tokens        optional map of design-token families to the project's own custom-property
+ *                 patterns, e.g. { color: /^--brand-/, spacing: /^--space-/ }. The overlay
+ *                 discovers tokens from the page's CSS on its own (naming conventions, then
+ *                 value type); these patterns take precedence when a project's names are
+ *                 unusual. Families: color, fontFamily, fontWeight, fontSize, lineHeight,
+ *                 tracking, radius, shadow, spacing. Values may be RegExp or regex-source strings.
  */
 export default function designMode(options = {}) {
   const token = randomBytes(16).toString('hex');
   const extraHosts = options.allowedHosts || [];
+  const tokenHints = Object.fromEntries(
+    Object.entries(options.tokens || {})
+      .filter(([, v]) => v)
+      .map(([k, v]) => [k, v instanceof RegExp ? v.source : String(v)]),
+  );
   let root = process.cwd();
   let queueDir = '';
   let counter = 0;
@@ -74,7 +85,7 @@ export default function designMode(options = {}) {
         {
           tag: 'script',
           injectTo: 'head',
-          children: `window.__CDM_CONFIG=${JSON.stringify({ endpoint: SELECTION_ROUTE, token })}`,
+          children: `window.__CDM_CONFIG=${JSON.stringify({ endpoint: SELECTION_ROUTE, token, tokens: tokenHints })}`,
         },
         { tag: 'script', injectTo: 'body', attrs: { src: OVERLAY_ROUTE, defer: true } },
       ];

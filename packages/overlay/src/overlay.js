@@ -575,36 +575,6 @@
   };
   const primitiveOf = (t, fallback = '') => t ? (t.chain.length ? t.chain[t.chain.length - 1].value : (t.computed || t.authored)) : fallback;
 
-  // Token catalog for the pickers: whatever the page's CSS defines.
-  const natural = (a, b) => a.localeCompare(b, undefined, { numeric: true });
-  let catalogCache = null;
-  let catalogAt = 0;
-  const tokenCatalog = () => {
-    if (catalogCache && Date.now() - catalogAt < 10000) return catalogCache;
-    const idx = customProps();
-    const names = Object.keys(idx);
-    const pick = (re) => names.filter((n) => re.test(n)).sort(natural);
-    catalogCache = {
-      color: pick(/^--color-/),
-      fontFamily: pick(/^--font-(?!weight-)[a-z]/),
-      fontWeight: pick(/^--font-weight-/),
-      fontSize: pick(/^--text-(?!shadow-)(?!.*--)/),
-      lineHeight: pick(/^--leading-/),
-      tracking: pick(/^--tracking-/),
-      radius: pick(/^--radius-/),
-      shadow: pick(/^--shadow-/),
-      spacingBase: idx['--spacing'] || '0.25rem',
-    };
-    catalogAt = Date.now();
-    return catalogCache;
-  };
-  const spacingBasePx = () => {
-    const v = tokenCatalog().spacingBase;
-    const n = parseFloat(v) || 0.25;
-    if (v.endsWith('rem')) return n * (parseFloat(getComputedStyle(document.documentElement).fontSize) || 16);
-    if (v.endsWith('px')) return n;
-    return n * 16;
-  };
   const resolveVar = (name, elx) => {
     const idx = customProps();
     let cur = idx[name] || '';
@@ -615,6 +585,128 @@
     }
     return cur || getComputedStyle(elx || document.documentElement).getPropertyValue(name).trim() || '';
   };
+
+  // ---- token discovery (app-agnostic) -------------------------------------------
+  // Every --* custom property the page defines is indexed (customProps). Pickers group
+  // them into families by, in order: the project's own patterns (plugin option `tokens`,
+  // arriving as regex sources in cfg.tokens), common naming conventions, and finally the
+  // value's type when the name says nothing. Nothing about a specific framework is required.
+  const FAMILY_KEYS = ['color', 'fontFamily', 'fontWeight', 'fontSize', 'lineHeight', 'tracking', 'radius', 'shadow', 'spacing'];
+  const DEFAULT_HINTS = {
+    color: /^--(?:color|colou?rs?|palette|brand|accent|primary|secondary|tertiary|surface|bg|background|fg|foreground|text-color|border-color|fill|stroke|neutral|gray|grey|slate|zinc|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)(?:-|$)/,
+    fontFamily: /^--(?:font-family|font(?!-weight|-size|-style|-stretch)|ff|typeface|family)(?:-|$)/,
+    fontWeight: /^--(?:font-weight|fw|weight)(?:-|$)/,
+    fontSize: /^--(?:font-size|fs|text(?!-shadow)|type-scale|type|size-text|heading|body)(?:-|$)/,
+    lineHeight: /^--(?:line-height|leading|lh)(?:-|$)/,
+    tracking: /^--(?:letter-spacing|tracking|ls)(?:-|$)/,
+    radius: /^--(?:radius|radii|rounded|corner|border-radius|br)(?:-|$)/,
+    shadow: /^--(?:shadow|elevation|box-shadow)(?:-|$)/,
+    spacing: /^--(?:spacing|space|sp|gap|inset|size|spacer)(?:-|$)/,
+  };
+  // internals and non-design families that should not pollute pickers
+  const NOISE = /^--(?:tw-|default-|animate-|ease-|blur-|perspective-|aspect-|breakpoint-|container-|drop-shadow-|inset-shadow-|inset-ring|ring-|text-shadow-|vite-|cdm-)|--line-height$|--font-weight$|--letter-spacing$/;
+  const userHints = (() => {
+    const out = {};
+    for (const [k, v] of Object.entries(cfg.tokens || {})) {
+      if (!FAMILY_KEYS.includes(k) || !v) continue;
+      try { out[k] = v instanceof RegExp ? v : new RegExp(String(v)); } catch { /* bad pattern: ignore */ }
+    }
+    return out;
+  })();
+  const hintFor = (name) => {
+    for (const k of FAMILY_KEYS) if (userHints[k] && userHints[k].test(name)) return k;
+    for (const k of FAMILY_KEYS) if (DEFAULT_HINTS[k].test(name)) return k;
+    return null;
+  };
+  const rootFontPx = () => parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+  const LENGTH_RE = /^-?(?:\d+|\d*\.\d+)(px|rem|em|%|vw|vh|vmin|vmax|ch|ex|cqw|cqh|cqi|svh|lvh|dvh|svw|lvw|dvw)?$/;
+  const lengthToPx = (v) => {
+    const m = LENGTH_RE.exec(String(v || '').trim());
+    if (!m) return null;
+    const n = parseFloat(m[0]);
+    if (!m[1]) return n === 0 ? 0 : null;
+    if (m[1] === 'px') return n;
+    if (m[1] === 'rem' || m[1] === 'em') return n * rootFontPx();
+    return null; // viewport/percent units: real, but not convertible here
+  };
+  const supports = (prop, v) => { try { return CSS.supports(prop, v); } catch { return false; } };
+  // value type: color | length | weight | lineHeight | tracking | shadow | fontFamily | number | other
+  const classifyValue = (raw) => {
+    const v = String(raw || '').trim();
+    if (!v || /^(inherit|initial|unset|revert|revert-layer|currentcolor)$/i.test(v)) return 'other';
+    if (/^-?(?:\d+|\d*\.\d+)$/.test(v)) {
+      const n = parseFloat(v);
+      if (Number.isInteger(n) && n >= 100 && n <= 1000 && n % 50 === 0) return 'weight';
+      if (n > 0.5 && n < 4) return 'lineHeight';
+      return 'number';
+    }
+    if (LENGTH_RE.test(v)) {
+      const m = LENGTH_RE.exec(v);
+      if (m[1] === 'em' && Math.abs(parseFloat(v)) < 0.25) return 'tracking';
+      return 'length';
+    }
+    if (/^calc\(|^clamp\(|^min\(|^max\(/.test(v) && supports('width', v)) return 'length';
+    if (supports('color', v)) return 'color';
+    if (v !== 'none' && /\d/.test(v) && supports('box-shadow', v)) return 'shadow';
+    if (supports('font-family', v) && /[a-z]/i.test(v) && (v.includes(',') || /serif|sans|mono|system-ui|ui-|"|'/.test(v))) return 'fontFamily';
+    return 'other';
+  };
+
+  const natural = (a, b) => a.localeCompare(b, undefined, { numeric: true });
+  let catalogCache = null;
+  let catalogAt = 0;
+  let catalogSheets = 0;
+  const tokenCatalog = () => {
+    if (catalogCache && Date.now() - catalogAt < 10000 && catalogSheets === document.styleSheets.length) return catalogCache;
+    const idx = customProps();
+    const fam = Object.fromEntries(FAMILY_KEYS.map((k) => [k, []]));
+    const lengthPool = [];
+    const types = {};
+    for (const name of Object.keys(idx).sort(natural)) {
+      if (NOISE.test(name)) continue;
+      const hint = hintFor(name);
+      if (hint === 'spacing' && name === '--spacing') continue; // Tailwind's base unit, handled as the spacing base
+      const prim = resolveVar(name);
+      const type = classifyValue(prim);
+      types[name] = type;
+      if (hint) { fam[hint].push(name); continue; }
+      // unnamed families: the value decides
+      if (type === 'color') fam.color.push(name);
+      else if (type === 'weight') fam.fontWeight.push(name);
+      else if (type === 'lineHeight') fam.lineHeight.push(name);
+      else if (type === 'tracking') fam.tracking.push(name);
+      else if (type === 'shadow') fam.shadow.push(name);
+      else if (type === 'fontFamily') fam.fontFamily.push(name);
+      else if (type === 'length') lengthPool.push(name);
+    }
+    // generic lengths are offered wherever a length fits, after the named families
+    for (const k of ['fontSize', 'radius', 'spacing']) fam[k] = fam[k].concat(lengthPool.filter((n) => !fam[k].includes(n)));
+    catalogCache = { ...fam, types, spacingBase: idx['--spacing'] || null, source: Object.keys(userHints).length ? 'project+conventions+values' : 'conventions+values' };
+    catalogAt = Date.now();
+    catalogSheets = document.styleSheets.length;
+    return catalogCache;
+  };
+  const typeOfToken = (name) => { const cat = tokenCatalog(); return cat.types[name] || classifyValue(resolveVar(name)); };
+  // what a field accepts beyond its own family list (a real token typed by name)
+  const FIELD_TYPES = { color: ['color'], fontFamily: ['fontFamily'], fontWeight: ['weight', 'number'], fontSize: ['length'], lineHeight: ['lineHeight', 'number', 'length'], tracking: ['tracking', 'length'], radius: ['length'], shadow: ['shadow'], spacing: ['length'] };
+  const tokenFits = (key, name) => {
+    const cat = tokenCatalog();
+    if ((cat[key] || []).includes(name)) return true;
+    return (FIELD_TYPES[key] || []).includes(typeOfToken(name));
+  };
+
+  // Spacing model: Tailwind-style base unit when the app has one (--spacing: 0.25rem),
+  // otherwise the app's own spacing tokens (--space-4: 1rem ...), otherwise plain px.
+  const spacingBasePx = () => {
+    const v = tokenCatalog().spacingBase;
+    if (!v) return null;
+    const px = lengthToPx(v);
+    return px && px > 0 ? px : null;
+  };
+  const spacingTokens = () => tokenCatalog().spacing
+    .map((n) => ({ name: n, px: lengthToPx(resolveVar(n)) }))
+    .filter((t) => t.px !== null)
+    .sort((a, b) => a.px - b.px || natural(a.name, b.name));
 
   /* ------------------------------------------------------------ payload --- */
 
@@ -1175,17 +1267,46 @@
     inp.addEventListener('pointercancel', end);
   };
 
-  // Tailwind's conventional spacing scale, offered as options for px fields
+  // Spacing is written three ways depending on what the app defines:
+  //   base   a Tailwind-style unit (--spacing: 0.25rem) → calc(var(--spacing) * n), quarter-unit snapping
+  //   tokens the app's own spacing tokens (--space-4: 1rem, ...) → var(--space-4) when one matches, else a px literal
+  //   px     nothing to lean on → plain px
+  const spacingMode = () => (spacingBasePx() ? 'base' : spacingTokens().length ? 'tokens' : 'px');
+  // Tailwind's conventional spacing scale, offered as options when a base unit exists
   const SPACING_SCALE = [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64, 72, 80, 96];
-  const spacingItems = () => { const b = spacingBasePx(); return SPACING_SCALE.map((n) => ({ value: n * b, label: `spacing × ${n}`, primitive: `${Math.round(n * b)}px` })); };
+  const PX_SCALE = [0, 2, 4, 6, 8, 10, 12, 14, 16, 20, 24, 28, 32, 40, 48, 56, 64, 80, 96, 128];
+  const spacingItems = () => {
+    const mode = spacingMode();
+    if (mode === 'base') { const b = spacingBasePx(); return SPACING_SCALE.map((n) => ({ value: n * b, label: `spacing × ${n}`, primitive: `${Math.round(n * b)}px` })); }
+    if (mode === 'tokens') return spacingTokens().map((t) => ({ value: t.px, label: t.name.replace(/^--/, ''), primitive: `${Math.round(t.px)}px` }));
+    return PX_SCALE.map((v) => ({ value: v, label: `${v}px` }));
+  };
   const openNumericOptions = (inp, items, currentValue, onPick) =>
     openDropdown({ anchor: inp, items, current: currentValue, onPick: (it) => { onPick(it.value); closeDropdown(); inp.blur(); } });
 
-  // px-valued field that previews in framework spacing units (px / --spacing)
-  const toUnits = (px) => Math.round((px / spacingBasePx()) * 4) / 4;
+  // px-valued field that previews in the app's spacing vocabulary
+  const toUnits = (px) => { const b = spacingBasePx(); return b ? Math.round((px / b) * 4) / 4 : Math.round(px); };
+  const spacingTokenAt = (px) => spacingTokens().find((t) => Math.abs(t.px - px) < 0.5) || null;
+  // the px the preview will actually produce for a requested px
+  const normPx = (px) => { const b = spacingBasePx(); return b ? Math.round(toUnits(px) * b) : Math.round(px); };
+  // short hint beside a px value: "×4" with a base unit, "space-4" when a token matches, nothing otherwise
+  const spacingHint = (px) => {
+    const mode = spacingMode();
+    if (mode === 'base') return `×${toUnits(px)}`;
+    if (mode === 'tokens') { const t = spacingTokenAt(px); return t ? t.name.replace(/^--/, '') : ''; }
+    return '';
+  };
   const previewSpacingPx = (prop, px) => {
-    const n = toUnits(px);
-    applyPreview(prop, `calc(var(--spacing) * ${n})`, { label: `spacing × ${n}`, primitive: `${Math.round(n * spacingBasePx())}px`, system: true });
+    const mode = spacingMode();
+    if (mode === 'base') {
+      const n = toUnits(px);
+      applyPreview(prop, `calc(var(--spacing) * ${n})`, { label: `spacing × ${n}`, primitive: `${Math.round(n * spacingBasePx())}px`, system: true });
+      return;
+    }
+    const r = Math.round(px);
+    const t = mode === 'tokens' ? spacingTokenAt(r) : null;
+    if (t) applyPreview(prop, `var(${t.name})`, { token: t.name, primitive: `${Math.round(t.px)}px` });
+    else applyPreview(prop, `${r}px`, { primitive: `${r}px`, system: mode === 'px' }); // with tokens around, an off-scale px is hardcoded
   };
   const sideTrace = (prop) => {
     const T = state.traces;
@@ -1207,13 +1328,14 @@
       inp.value = String(px);
       inp.setAttribute('data-cdm-field', '');
       const t = sideTrace(prop);
-      inp.title = `${prop}: ${px}px = spacing × ${toUnits(px)}${t ? ' · ' + tipFor(t) : ''}`;
+      const hint = spacingHint(px);
+      inp.title = `${prop}: ${px}px${hint ? ' = ' + hint : ''}${t ? ' · ' + tipFor(t) : ''}`;
       const reset = () => { inp.value = String(px); };
       const startPx = () => Math.round(parseFloat(getComputedStyle(state.selectedEl).getPropertyValue(prop)) || 0);
       const setPx = (v) => {
         const vv = allowNegative ? v : Math.max(0, v);
         previewSpacingPx(prop, vv);
-        inp.value = String(Math.round(toUnits(vv) * spacingBasePx()));
+        inp.value = String(normPx(vv));
         inp.classList.add('mod');
       };
       let scrubBase = 0;
@@ -1281,7 +1403,7 @@
   // Token picker: a text field with an in-panel dropdown of the page's tokens of one
   // family (swatch + primitive shown). Picking or typing a token previews var(--token);
   // any other text previews the literal and flags it hardcoded.
-  const tokenInput = ({ prop, family, key, swatch, special }) => {
+  const tokenInput = ({ prop, key, swatch, special }) => {
     const t = state.traces[prop];
     const names = (tokenCatalog()[key] || []);
     const idx = customProps();
@@ -1311,7 +1433,7 @@
       const raw = rawIn.trim();
       if (!raw || raw === current) { inp.value = current; return; }
       const name = raw.startsWith('--') ? raw : `--${raw}`;
-      if (idx[name] !== undefined && family.test(name)) {
+      if (idx[name] !== undefined && tokenFits(key, name)) {
         const prim = resolveVar(name, state.selectedEl);
         applyPreview(prop, `var(${name})`, { token: name, primitive: prim });
         if (sw) sw.style.background = prim;
@@ -1398,7 +1520,6 @@
   // Spacing field in px (what the references show); previews as spacing units under the hood.
   const spacingInput = ({ prop }) => {
     const cs = getComputedStyle(state.selectedEl);
-    const base = spacingBasePx();
     const raw = cs.getPropertyValue(`${prop}-start`) || cs.getPropertyValue(prop) || '0';
     const px = Math.round(parseFloat(raw) || 0);
     const wrap = mk('unit');
@@ -1407,13 +1528,14 @@
     inp.inputMode = 'numeric';
     inp.value = String(px);
     const u = mk('u', 'span');
-    u.textContent = `px · ×${toUnits(px)}`;
+    const unitText = (v) => { const h = spacingHint(v); return h ? `px · ${h}` : 'px'; };
+    u.textContent = unitText(px);
     fieldKeys(inp, () => { inp.value = String(px); });
     const setPx = (vIn) => {
       const v = Math.max(0, vIn);
       previewSpacingPx(prop, v);
-      inp.value = String(Math.round(toUnits(v) * base));
-      u.textContent = `px · ×${toUnits(v)}`;
+      inp.value = String(normPx(v));
+      u.textContent = unitText(v);
     };
     let scrubBase = 0;
     inp.addEventListener('pointerdown', () => { scrubBase = Math.round(parseFloat(inp.value) || 0); }, true);
@@ -1619,12 +1741,12 @@
     ];
     const spacing = [boxModel(cs, r)];
     const typography = [
-      tk('Font', { prop: 'font-family', family: /^--font-(?!weight-)/, key: 'fontFamily' }),
-      tk('Size', { prop: 'font-size', family: /^--text-(?!shadow-)(?!.*--)/, key: 'fontSize' }),
-      tk('Weight', { prop: 'font-weight', family: /^--font-weight-/, key: 'fontWeight' }),
-      tk('Leading', { prop: 'line-height', family: /^--leading-|^--text-.*--line-height$/, key: 'lineHeight' }),
-      tk('Tracking', { prop: 'letter-spacing', family: /^--tracking-/, key: 'tracking' }),
-      tk('Color', { prop: 'color', family: /^--color-/, key: 'color', swatch: true }),
+      tk('Font', { prop: 'font-family', key: 'fontFamily' }),
+      tk('Size', { prop: 'font-size', key: 'fontSize' }),
+      tk('Weight', { prop: 'font-weight', key: 'fontWeight' }),
+      tk('Leading', { prop: 'line-height', key: 'lineHeight' }),
+      tk('Tracking', { prop: 'letter-spacing', key: 'tracking' }),
+      tk('Color', { prop: 'color', key: 'color', swatch: true }),
       row('Align', segmented({ prop: 'text-align', current: cs.textAlign, map: { start: 'left', end: 'right', '-webkit-left': 'left', '-webkit-center': 'center', '-webkit-right': 'right' }, options: [
         { value: 'left', icon: 't-left' }, { value: 'center', icon: 't-center' }, { value: 'right', icon: 't-right' }, { value: 'justify', icon: 't-justify' },
       ] }), { props: ['text-align'] }),
@@ -1655,10 +1777,10 @@
     });
     const opWrap = mk('unit'); const pct = mk('u', 'span'); pct.textContent = '%'; opWrap.append(opacityIn, pct);
     const appearance = [
-      tk('Fill', { prop: 'background-color', family: /^--color-/, key: 'color', swatch: true }),
-      tk('Radius', { prop: 'border-radius', family: /^--radius-/, key: 'radius', special: { full: { css: 'calc(infinity * 1px)' }, none: { css: '0px' } } }),
-      tk('Border', { prop: 'border-color', family: /^--color-/, key: 'color', swatch: true }),
-      tk('Shadow', { prop: 'box-shadow', family: /^--shadow-/, key: 'shadow', special: { none: { css: 'none' } } }),
+      tk('Fill', { prop: 'background-color', key: 'color', swatch: true }),
+      tk('Radius', { prop: 'border-radius', key: 'radius', special: { full: { css: 'calc(infinity * 1px)' }, none: { css: '0px' } } }),
+      tk('Border', { prop: 'border-color', key: 'color', swatch: true }),
+      tk('Shadow', { prop: 'box-shadow', key: 'shadow', special: { none: { css: 'none' } } }),
       row('Opacity', opWrap, { props: ['opacity'] }),
     ];
 
