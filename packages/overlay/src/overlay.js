@@ -154,7 +154,7 @@
     .dd .it.cur .lab { color: #0C8CE9; }
     .dd .it .sw { width: 12px; height: 12px; border-radius: 3px; flex: none; border: 1px solid #3A3A3A; }
     .dd .it .lab { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .dd .it .pv { color: #9B9B9B; font-size: 10px; flex: none; max-width: 46%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .dd .it .pv { color: #9B9B9B; font-size: 10px; flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .dd .empty { color: #9B9B9B; padding: 6px 8px; font-size: 10.5px; }
     input[type=number].ctl { -moz-appearance: textfield; }
     input[type=number].ctl::-webkit-inner-spin-button { opacity: 0.6; }
@@ -964,7 +964,7 @@
       const c = container.getBoundingClientRect();
       const a = anchor.getBoundingClientRect();
       const innerW = c.width - 16;
-      const width = Math.min(innerW, Math.max(a.width, 230));
+      const width = Math.min(innerW, Math.max(a.width, 276));
       let left = a.left - c.left;
       if (left + width > c.width - 8) left = Math.max(8, c.width - 8 - width);
       const wanted = Math.min(260, d.shown.length * 27 + 10);
