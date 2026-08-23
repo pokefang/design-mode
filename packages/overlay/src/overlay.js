@@ -1231,6 +1231,7 @@
     const idx = customProps();
     const cs = getComputedStyle(state.selectedEl);
     let current = semanticName(t) || (t ? t.authored : '') || cs.getPropertyValue(prop).trim();
+    if (current === 'rgba(0, 0, 0, 0)') current = 'transparent';
     const wrap = mk(swatch ? 'swatched' : '');
     let sw = null;
     if (swatch) { sw = mk('sw', 'span'); sw.style.background = cs.getPropertyValue(prop); wrap.append(sw); }
