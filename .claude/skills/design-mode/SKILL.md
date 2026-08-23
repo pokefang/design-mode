@@ -63,7 +63,9 @@ Translate each edit into source, preferring the framework's own layer. Tailwind 
 | border-radius | `--radius-xl` / label `full` | `rounded-xl` / `rounded-full` |
 | box-shadow | `--shadow-md` / label `none` | `shadow-md` / `shadow-none` |
 | padding-inline / padding-block | label `spacing × 4` | `px-4` / `py-4` |
+| padding-top / right / bottom / left | label `spacing × 4` | `pt-4` / `pr-4` / `pb-4` / `pl-4` (collapse to `px-`/`py-`/`p-` when sides match) |
 | margin-inline / margin-block | label `spacing × 2` | `mx-2` / `my-2` |
+| margin-top / right / bottom / left | label `spacing × 2` / `spacing × -2` | `mt-2` … / negative: `-mt-2` |
 | gap | label `spacing × 6` | `gap-6` |
 | display | label `flex` / `grid` / `none` | `flex` / `grid` / `hidden` |
 | flex-direction | `column` | `flex-col` |

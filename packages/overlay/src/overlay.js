@@ -140,7 +140,26 @@
     .sec.closed .chev { transform: rotate(-90deg); }
     .sec.closed .sec-body { display: none; }
     .row { display: grid; grid-template-columns: 62px 1fr; gap: 6px; align-items: center; padding: 2.5px 0; min-width: 0; }
-    .lbl { color: #9B9B9B; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 5px; }
+    .lbl { color: #9B9B9B; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 5px; user-select: none; }
+    .lbl.mod { color: #8FB2FF; }
+    .seg { display: flex; gap: 2px; background: #2B2B2B; border-radius: 6px; padding: 2px; min-width: 0; }
+    .seg button { flex: 1; min-width: 0; height: 22px; border: none; border-radius: 4px; background: transparent; color: #9B9B9B; display: flex; align-items: center; justify-content: center; padding: 0; }
+    .seg button:hover { color: #E8E8E8; }
+    .seg button.on { background: #3F3F3F; color: #E8E8E8; }
+    .seg svg { width: 14px; height: 14px; display: block; }
+    .bm { position: relative; background: #232323; border: 1px solid #3A3A3A; border-radius: 6px; padding: 22px 38px; margin-top: 4px; }
+    .bp { position: relative; background: #1A1A1A; border: 1px solid #3A3A3A; border-radius: 4px; padding: 22px 38px; }
+    .bc { height: 18px; display: flex; align-items: center; justify-content: center; color: #9B9B9B; font-size: 10px; white-space: nowrap; }
+    .bm-l { position: absolute; top: 4px; left: 7px; font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase; color: #9B9B9B; cursor: default; user-select: none; }
+    .bm-l.mod { color: #8FB2FF; }
+    .bx { position: absolute; width: 34px; height: 18px; padding: 0; border: none; border-radius: 3px; background: transparent; color: #E8E8E8; font: inherit; font-size: 10.5px; text-align: center; outline: none; }
+    .bx:hover { background: #2F2F2F; }
+    .bx:focus { background: #2F2F2F; box-shadow: inset 0 0 0 1px #0C8CE9; }
+    .bx.mod { color: #8FB2FF; }
+    .bx.t { top: 2px; left: 50%; transform: translateX(-50%); }
+    .bx.b { bottom: 2px; left: 50%; transform: translateX(-50%); }
+    .bx.l { left: 2px; top: 50%; transform: translateY(-50%); }
+    .bx.r { right: 2px; top: 50%; transform: translateY(-50%); }
     .ctl { height: 26px; width: 100%; min-width: 0; background: #2B2B2B; border: 1px solid transparent; border-radius: 6px; color: #E8E8E8; font: inherit; padding: 0 8px; outline: none; }
     .ctl:hover { border-color: #3A3A3A; }
     .ctl:focus { border-color: #0C8CE9; }
@@ -158,7 +177,6 @@
     .dd .empty { color: #9B9B9B; padding: 6px 8px; font-size: 10.5px; }
     input[type=number].ctl { -moz-appearance: textfield; }
     input[type=number].ctl::-webkit-inner-spin-button { opacity: 0.6; }
-    .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; min-width: 0; }
     .unit { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px; min-width: 0; }
     .unit .u { color: #9B9B9B; font-size: 10px; white-space: nowrap; }
     .swatched { display: grid; grid-template-columns: auto 1fr; gap: 6px; align-items: center; min-width: 0; }
@@ -483,7 +501,9 @@
   const TRACE_PROPS = [
     'color', 'background-color', 'border-color', 'font-family', 'font-size', 'font-weight',
     'line-height', 'letter-spacing', 'text-align', 'padding', 'padding-inline', 'padding-block',
-    'margin', 'margin-inline', 'margin-block', 'gap', 'border-radius', 'box-shadow', 'opacity',
+    'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
+    'margin', 'margin-inline', 'margin-block', 'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
+    'gap', 'border-radius', 'box-shadow', 'opacity',
   ];
 
   /* token: var() chain · utility: framework class with a literal (rounded-full)
@@ -757,6 +777,7 @@
       companions,
     });
     renderTray();
+    refreshModMarks();
   };
 
   const liftOverride = (elx, c) => {
@@ -1030,14 +1051,164 @@
     else dd.place();
   }, { passive: true });
 
+  const hasPending = (prop) => { const m = state.selectedEl && state.pending.get(state.selectedEl); return !!(m && m.has(prop)); };
+  const refreshModMarks = () => {
+    panelScroll.querySelectorAll('[data-props]').forEach((l) => {
+      const mod = l.dataset.props.split(' ').some(hasPending);
+      l.classList.toggle('mod', mod);
+      if (l.classList.contains('lbl')) l.title = (mod ? 'Changed · ' : '') + 'Double-click to reset';
+    });
+    panelScroll.querySelectorAll('.bx[data-prop]').forEach((i) => i.classList.toggle('mod', hasPending(i.dataset.prop)));
+  };
+  const revertProps = (props) => {
+    const elx = state.selectedEl;
+    const map = elx && state.pending.get(elx);
+    if (!map) return;
+    let n = 0;
+    for (const prop of props) { if (map.has(prop)) { liftOverride(elx, map.get(prop)); map.delete(prop); n++; } }
+    if (!n) return;
+    if (!map.size) state.pending.delete(elx);
+    renderTray();
+    renderPanel(elx, true);
+  };
+
+  // opts.props: the CSS props this row edits; double-click the label to reset them,
+  // and the label tints while any of them has a pending change
   const row = (label, control, opts = {}) => {
     const r = mk('row');
     const l = mk('lbl');
     l.textContent = label;
     if (opts.hardcoded) { const d = mk('dot', 'span'); d.title = 'hardcoded value'; l.append(d); }
     if (opts.tip) r.title = opts.tip;
+    if (opts.props && opts.props.length) {
+      l.dataset.props = opts.props.join(' ');
+      const mod = opts.props.some(hasPending);
+      if (mod) l.classList.add('mod');
+      l.title = (mod ? 'Changed · ' : '') + 'Double-click to reset';
+      l.addEventListener('dblclick', (e) => { e.preventDefault(); revertProps(opts.props); });
+    }
     r.append(l, control);
     return r;
+  };
+
+  const ICON = {
+    block: '<rect x="2" y="4" width="12" height="8" rx="1"/>',
+    'inline-block': '<rect x="2" y="5" width="7" height="6" rx="1"/><path d="M11 6h3M11 8h3M11 10h3" stroke="currentColor" stroke-width="1.3" fill="none"/>',
+    flex: '<rect x="2" y="3" width="3" height="10" rx="0.5"/><rect x="6.5" y="3" width="3" height="10" rx="0.5"/><rect x="11" y="3" width="3" height="10" rx="0.5"/>',
+    grid: '<rect x="2" y="2" width="5" height="5" rx="0.5"/><rect x="9" y="2" width="5" height="5" rx="0.5"/><rect x="2" y="9" width="5" height="5" rx="0.5"/><rect x="9" y="9" width="5" height="5" rx="0.5"/>',
+    none: '<circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.3" fill="none"/><path d="M4 4l8 8" stroke="currentColor" stroke-width="1.3"/>',
+    row: '<path d="M2 8h11M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
+    column: '<path d="M8 2v11M4 9l4 4 4-4" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
+    'a-start': '<path d="M2 2.5h12" stroke="currentColor" stroke-width="1.3"/><rect x="4" y="4.5" width="3" height="6" rx="0.5"/><rect x="9" y="4.5" width="3" height="9" rx="0.5"/>',
+    'a-center': '<path d="M2 8h12" stroke="currentColor" stroke-width="1" stroke-dasharray="1.5 1.5"/><rect x="4" y="5" width="3" height="6" rx="0.5"/><rect x="9" y="3.5" width="3" height="9" rx="0.5"/>',
+    'a-end': '<path d="M2 13.5h12" stroke="currentColor" stroke-width="1.3"/><rect x="4" y="5.5" width="3" height="6" rx="0.5"/><rect x="9" y="2.5" width="3" height="9" rx="0.5"/>',
+    'a-stretch': '<path d="M2 2.5h12M2 13.5h12" stroke="currentColor" stroke-width="1.3"/><rect x="4" y="4.5" width="3" height="7" rx="0.5"/><rect x="9" y="4.5" width="3" height="7" rx="0.5"/>',
+    'a-baseline': '<path d="M2 10.5h12" stroke="currentColor" stroke-width="1" stroke-dasharray="1.5 1.5"/><rect x="4" y="5" width="3" height="5.5" rx="0.5"/><rect x="9" y="3" width="3" height="7.5" rx="0.5"/>',
+    'j-start': '<path d="M2.5 2v12" stroke="currentColor" stroke-width="1.3"/><rect x="4.5" y="4" width="3" height="8" rx="0.5"/><rect x="8.5" y="4" width="3" height="8" rx="0.5"/>',
+    'j-center': '<path d="M8 2v12" stroke="currentColor" stroke-width="1" stroke-dasharray="1.5 1.5"/><rect x="3" y="4" width="3" height="8" rx="0.5"/><rect x="10" y="4" width="3" height="8" rx="0.5"/>',
+    'j-end': '<path d="M13.5 2v12" stroke="currentColor" stroke-width="1.3"/><rect x="4.5" y="4" width="3" height="8" rx="0.5"/><rect x="8.5" y="4" width="3" height="8" rx="0.5"/>',
+    'j-between': '<path d="M2 2v12M14 2v12" stroke="currentColor" stroke-width="1.3"/><rect x="3.5" y="4" width="3" height="8" rx="0.5"/><rect x="9.5" y="4" width="3" height="8" rx="0.5"/>',
+    'j-around': '<path d="M2 2v12M14 2v12" stroke="currentColor" stroke-width="1.3"/><rect x="4.75" y="4" width="2.5" height="8" rx="0.5"/><rect x="8.75" y="4" width="2.5" height="8" rx="0.5"/>',
+    't-left': '<path d="M2 4h12M2 7h8M2 10h12M2 13h8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>',
+    't-center': '<path d="M2 4h12M4 7h8M2 10h12M4 13h8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>',
+    't-right': '<path d="M2 4h12M6 7h8M2 10h12M6 13h8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>',
+    't-justify': '<path d="M2 4h12M2 7h12M2 10h12M2 13h12" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>',
+  };
+  const svg = (name) => `<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">${ICON[name] || ''}</svg>`;
+
+  // Icon segmented control (Webflow-style): options [{ value, icon, title }]
+  const segmented = ({ prop, options, current, system = true, map }) => {
+    const seg = mk('seg');
+    seg.setAttribute('data-cdm-field', '');
+    let cur = (map && map[current]) || current;
+    const paint = () => seg.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.v === cur));
+    for (const o of options) {
+      const b = mk('', 'button');
+      b.type = 'button';
+      b.dataset.v = o.value;
+      b.innerHTML = svg(o.icon);
+      b.title = `${prop}: ${o.value}${o.title ? ' · ' + o.title : ''}`;
+      b.addEventListener('click', () => {
+        cur = o.value;
+        paint();
+        applyPreview(prop, o.value, { label: o.value, primitive: o.value, system });
+      });
+      seg.append(b);
+    }
+    paint();
+    return seg;
+  };
+
+  // px-valued field that previews in framework spacing units (px / --spacing)
+  const toUnits = (px) => Math.round((px / spacingBasePx()) * 4) / 4;
+  const previewSpacingPx = (prop, px) => {
+    const n = toUnits(px);
+    applyPreview(prop, `calc(var(--spacing) * ${n})`, { label: `spacing × ${n}`, primitive: `${Math.round(n * spacingBasePx())}px`, system: true });
+  };
+  const sideTrace = (prop) => {
+    const T = state.traces;
+    const [fam, side] = prop.split('-');
+    const axis = side === 'top' || side === 'bottom' ? `${fam}-block` : `${fam}-inline`;
+    return T[prop] || T[axis] || T[fam] || null;
+  };
+
+  // Box-model diagram (Webflow-style): margin ring, padding ring, element size in the middle.
+  const boxModel = (cs, rect) => {
+    const SIDES = ['top', 'right', 'bottom', 'left'];
+    const bm = mk('bm');
+    const field = (prop, cls, allowNegative) => {
+      const px = Math.round(parseFloat(cs.getPropertyValue(prop)) || 0);
+      const inp = mk(`bx ${cls}` + (hasPending(prop) ? ' mod' : ''), 'input');
+      inp.dataset.prop = prop;
+      inp.type = 'text';
+      inp.inputMode = 'numeric';
+      inp.value = String(px);
+      inp.setAttribute('data-cdm-field', '');
+      const t = sideTrace(prop);
+      inp.title = `${prop}: ${px}px = spacing × ${toUnits(px)}${t ? ' · ' + tipFor(t) : ''}`;
+      const reset = () => { inp.value = String(px); };
+      inp.addEventListener('focus', () => inp.select());
+      inp.addEventListener('keydown', (e) => {
+        e.stopPropagation();
+        if (e.key === 'Enter') { e.preventDefault(); inp.blur(); }
+        if (e.key === 'Escape') { e.preventDefault(); reset(); inp.blur(); }
+        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+          e.preventDefault();
+          const step = e.shiftKey ? 8 : 4;
+          const v = (parseFloat(inp.value) || 0) + (e.key === 'ArrowUp' ? step : -step);
+          inp.value = String(allowNegative ? v : Math.max(0, v));
+          inp.dispatchEvent(new Event('change'));
+        }
+      });
+      inp.addEventListener('change', () => {
+        const parsed = parseFloat(inp.value);
+        if (inp.value.trim() === '' || Number.isNaN(parsed)) { reset(); return; }
+        const v = allowNegative ? parsed : Math.max(0, parsed);
+        previewSpacingPx(prop, v);
+        inp.value = String(Math.round(toUnits(v) * spacingBasePx()));
+        inp.classList.add('mod');
+      });
+      return inp;
+    };
+    const label = (text, props) => {
+      const l = mk('bm-l' + (props.some(hasPending) ? ' mod' : ''), 'span');
+      l.dataset.props = props.join(' ');
+      l.textContent = text;
+      l.title = 'Double-click to reset ' + text.toLowerCase();
+      l.addEventListener('dblclick', (e) => { e.preventDefault(); revertProps(props); });
+      return l;
+    };
+    const mProps = SIDES.map((sd) => `margin-${sd}`).concat(['margin', 'margin-inline', 'margin-block']);
+    const pProps = SIDES.map((sd) => `padding-${sd}`).concat(['padding', 'padding-inline', 'padding-block']);
+    bm.append(label('Margin', mProps), ...SIDES.map((sd) => field(`margin-${sd}`, sd[0], true)));
+    const bp = mk('bp');
+    bp.append(label('Padding', pProps), ...SIDES.map((sd) => field(`padding-${sd}`, sd[0], false)));
+    const bc = mk('bc');
+    bc.textContent = `${Math.round(rect.width)} × ${Math.round(rect.height)}`;
+    bc.title = 'Rendered size';
+    bp.append(bc);
+    bm.append(bp);
+    return bm;
   };
 
   const fieldKeys = (inp, reset) => {
@@ -1147,35 +1318,33 @@
     return b;
   };
 
-  // Spacing in framework units (multiples of --spacing), shown with the px it resolves to.
+  // Spacing field in px (what the references show); previews as spacing units under the hood.
   const spacingInput = ({ prop }) => {
     const cs = getComputedStyle(state.selectedEl);
     const base = spacingBasePx();
     const raw = cs.getPropertyValue(`${prop}-start`) || cs.getPropertyValue(prop) || '0';
-    const px = parseFloat(raw) || 0;
-    const units = Math.round((px / base) * 4) / 4;
+    const px = Math.round(parseFloat(raw) || 0);
     const wrap = mk('unit');
     const inp = mk('ctl', 'input');
     inp.type = 'number';
-    inp.step = '0.5';
+    inp.step = String(base);
     inp.min = '0';
-    inp.value = String(units);
+    inp.value = String(px);
     const u = mk('u', 'span');
-    u.textContent = `${Math.round(px)}px`;
-    fieldKeys(inp, () => { inp.value = String(units); });
+    u.textContent = `px · ×${toUnits(px)}`;
+    fieldKeys(inp, () => { inp.value = String(px); });
     inp.addEventListener('change', () => {
       const parsed = parseFloat(inp.value);
-      if (inp.value.trim() === '' || Number.isNaN(parsed)) { inp.value = String(units); return; } // blank or junk: leave it alone
-      const n = Math.max(0, parsed);
-      applyPreview(prop, `calc(var(--spacing) * ${n})`, { label: `spacing × ${n}`, primitive: `${n * base}px`, system: true });
-      u.textContent = `${Math.round(n * base)}px`;
+      if (inp.value.trim() === '' || Number.isNaN(parsed)) { inp.value = String(px); return; } // blank or junk: leave it alone
+      const v = Math.max(0, parsed);
+      previewSpacingPx(prop, v);
+      inp.value = String(Math.round(toUnits(v) * base));
+      u.textContent = `px · ×${toUnits(v)}`;
     });
     wrap.append(inp, u);
     const t = state.traces[prop];
     return { node: wrap, hardcoded: !!t && t.status === 'hardcoded', tip: tipFor(t) };
   };
-
-  const pair = (a, b) => { const p = mk('pair'); p.append(a, b); return p; };
 
   const section = (title, rows) => {
     const s = mk('sec' + (state.collapsed.has(title) ? ' closed' : ''));
@@ -1340,30 +1509,27 @@
 
     panelScroll.append(promptSection());
 
-    const tk = (label, opts) => { const c = tokenInput(opts); return row(label, c.node, { hardcoded: c.hardcoded, tip: c.tip }); };
-    const sp = (label, a, b) => {
-      const A = spacingInput({ prop: a });
-      const B = spacingInput({ prop: b });
-      return row(label, pair(A.node, B.node), { hardcoded: A.hardcoded || B.hardcoded, tip: `${a}: ${A.tip}\n${b}: ${B.tip}` });
-    };
+    const tk = (label, opts) => { const c = tokenInput(opts); return row(label, c.node, { hardcoded: c.hardcoded, tip: c.tip, props: [opts.prop] }); };
 
     const disp = cs.display;
     const isFlex = disp.includes('flex');
     const isGrid = disp.includes('grid');
     const layout = [
-      row('Display', selectInput({ prop: 'display', options: ['block', 'inline-block', 'flex', 'inline-flex', 'grid', 'none'], current: disp })),
-      isFlex ? row('Direction', selectInput({ prop: 'flex-direction', options: ['row', 'column'], current: cs.flexDirection })) : null,
-      (isFlex || isGrid) ? row('Align', selectInput({ prop: 'align-items', options: ['stretch', 'flex-start', 'center', 'flex-end', 'baseline'], current: cs.alignItems })) : null,
-      (isFlex || isGrid) ? row('Justify', selectInput({ prop: 'justify-content', options: ['flex-start', 'center', 'flex-end', 'space-between', 'space-around'], current: cs.justifyContent })) : null,
-      (isFlex || isGrid) ? (() => { const g = spacingInput({ prop: 'gap' }); return row('Gap', g.node, { hardcoded: g.hardcoded, tip: g.tip }); })() : null,
+      row('Display', segmented({ prop: 'display', current: disp, options: [
+        { value: 'block', icon: 'block' }, { value: 'inline-block', icon: 'inline-block' }, { value: 'flex', icon: 'flex' }, { value: 'grid', icon: 'grid' }, { value: 'none', icon: 'none', title: 'hidden' },
+      ] }), { props: ['display'] }),
+      isFlex ? row('Direction', segmented({ prop: 'flex-direction', current: cs.flexDirection, options: [
+        { value: 'row', icon: 'row', title: 'horizontal' }, { value: 'column', icon: 'column', title: 'vertical' },
+      ] }), { props: ['flex-direction'] }) : null,
+      (isFlex || isGrid) ? row('Align', segmented({ prop: 'align-items', current: cs.alignItems, map: { normal: 'stretch', start: 'flex-start', end: 'flex-end', 'self-start': 'flex-start', 'self-end': 'flex-end' }, options: [
+        { value: 'flex-start', icon: 'a-start' }, { value: 'center', icon: 'a-center' }, { value: 'flex-end', icon: 'a-end' }, { value: 'stretch', icon: 'a-stretch' }, { value: 'baseline', icon: 'a-baseline' },
+      ] }), { props: ['align-items'] }) : null,
+      (isFlex || isGrid) ? row('Justify', segmented({ prop: 'justify-content', current: cs.justifyContent, map: { normal: 'flex-start', start: 'flex-start', end: 'flex-end', left: 'flex-start', right: 'flex-end' }, options: [
+        { value: 'flex-start', icon: 'j-start' }, { value: 'center', icon: 'j-center' }, { value: 'flex-end', icon: 'j-end' }, { value: 'space-between', icon: 'j-between' }, { value: 'space-around', icon: 'j-around' },
+      ] }), { props: ['justify-content'] }) : null,
+      (isFlex || isGrid) ? (() => { const g = spacingInput({ prop: 'gap' }); return row('Gap', g.node, { hardcoded: g.hardcoded, tip: g.tip, props: ['gap'] }); })() : null,
     ];
-    const spacing = [
-      sp('Padding', 'padding-inline', 'padding-block'),
-      sp('Margin', 'margin-inline', 'margin-block'),
-    ];
-    const w = mk('ctl', 'input'); w.value = `W ${Math.round(r.width)}`; w.disabled = true;
-    const h = mk('ctl', 'input'); h.value = `H ${Math.round(r.height)}`; h.disabled = true;
-    const size = [row('Box', pair(w, h))];
+    const spacing = [boxModel(cs, r)];
     const typography = [
       tk('Font', { prop: 'font-family', family: /^--font-(?!weight-)/, key: 'fontFamily' }),
       tk('Size', { prop: 'font-size', family: /^--text-(?!.*--)/, key: 'fontSize' }),
@@ -1371,7 +1537,9 @@
       tk('Leading', { prop: 'line-height', family: /^--leading-|^--text-.*--line-height$/, key: 'lineHeight' }),
       tk('Tracking', { prop: 'letter-spacing', family: /^--tracking-/, key: 'tracking' }),
       tk('Color', { prop: 'color', family: /^--color-/, key: 'color', swatch: true }),
-      row('Align', selectInput({ prop: 'text-align', options: ['start', 'left', 'center', 'right', 'justify'], current: cs.textAlign })),
+      row('Align', segmented({ prop: 'text-align', current: cs.textAlign, map: { start: 'left', end: 'right', '-webkit-left': 'left', '-webkit-center': 'center', '-webkit-right': 'right' }, options: [
+        { value: 'left', icon: 't-left' }, { value: 'center', icon: 't-center' }, { value: 'right', icon: 't-right' }, { value: 'justify', icon: 't-justify' },
+      ] }), { props: ['text-align'] }),
     ];
     const opacityIn = mk('ctl', 'input');
     opacityIn.type = 'number'; opacityIn.min = '0'; opacityIn.max = '100'; opacityIn.step = '5';
@@ -1389,13 +1557,12 @@
       tk('Radius', { prop: 'border-radius', family: /^--radius-/, key: 'radius', special: { full: { css: 'calc(infinity * 1px)' }, none: { css: '0px' } } }),
       tk('Border', { prop: 'border-color', family: /^--color-/, key: 'color', swatch: true }),
       tk('Shadow', { prop: 'box-shadow', family: /^--shadow-/, key: 'shadow', special: { none: { css: 'none' } } }),
-      row('Opacity', opWrap),
+      row('Opacity', opWrap, { props: ['opacity'] }),
     ];
 
     panelScroll.append(
       section('Layout', layout),
       section('Spacing', spacing),
-      section('Size', size),
       section('Typography', typography),
       section('Appearance', appearance),
     );
