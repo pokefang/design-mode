@@ -77,7 +77,7 @@ skill's Tier 1 section covers it; selections then never leave the page.
 
 ### In the page
 
-`Cmd+D` toggles Design Mode. While nothing is selected the page is in inspect
+`Cmd+D` (Ctrl+D on Windows and Linux) toggles Design Mode. While nothing is selected the page is in inspect
 mode (crosshair cursor, hover highlights, click selects). Selecting an element
 docks a sidebar on the right (drag its header to snap left) with breadcrumbs, a
 collapsed "Ask Claude" prompt, and Layout / Spacing / Typography / Appearance

@@ -167,7 +167,9 @@
     .diag.bl { bottom: 0; left: 0; background: linear-gradient(to bottom right, transparent calc(50% - .5px), var(--dg) calc(50% - .5px), var(--dg) calc(50% + .5px), transparent calc(50% + .5px)); }
     .diag.br { bottom: 0; right: 0; background: linear-gradient(to bottom left, transparent calc(50% - .5px), var(--dg) calc(50% - .5px), var(--dg) calc(50% + .5px), transparent calc(50% + .5px)); }
     .bm-l { position: absolute; top: 5px; left: 8px; font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase; color: #8A8A8A; cursor: default; user-select: none; z-index: 1; }
+    .bm-l { display: inline-flex; align-items: center; gap: 4px; }
     .bm-l.mod { color: #8FB2FF; }
+    .bm-l .dot { width: 5px; height: 5px; }
     .bx { position: absolute; width: 34px; height: 18px; padding: 0; border: none; border-radius: 3px; background: transparent; color: #E8E8E8; font: inherit; font-size: 11px; text-align: center; outline: none; z-index: 1; }
     .bx:hover { background: rgba(255,255,255,0.08); }
     .bx:focus { background: rgba(255,255,255,0.08); box-shadow: inset 0 0 0 1px #0C8CE9; }
@@ -1442,6 +1444,7 @@
       const mod = l.dataset.props.split(' ').some(hasPending);
       l.classList.toggle('mod', mod);
       if (l.classList.contains('lbl')) { l.title = (mod ? 'Changed · ' : '') + 'Double-click to reset'; markDot(l); }
+      else if (l.classList.contains('bm-l')) { l.title = (mod ? 'Changed · ' : '') + `Double-click to reset ${l.textContent.toLowerCase()}`; markDot(l); }
     });
     panelScroll.querySelectorAll('.bx[data-prop]').forEach((i) => i.classList.toggle('mod', hasPending(i.dataset.prop)));
   };
@@ -1687,8 +1690,9 @@
       const l = mk('bm-l' + (props.some(hasPending) ? ' mod' : ''), 'span');
       l.dataset.props = props.join(' ');
       l.textContent = text;
-      l.title = 'Double-click to reset ' + text.toLowerCase();
+      l.title = (l.classList.contains('mod') ? 'Changed · ' : '') + 'Double-click to reset ' + text.toLowerCase();
       l.addEventListener('dblclick', (e) => { e.preventDefault(); revertProps(props); });
+      markDot(l);
       return l;
     };
     const mProps = SIDES.map((sd) => `margin-${sd}`).concat(['margin', 'margin-inline', 'margin-block']);
@@ -2529,7 +2533,8 @@
     const origin = e.composedPath ? e.composedPath()[0] : e.target;
     // Cmd+D on Mac, Ctrl+D elsewhere (Ctrl+D is delete-forward in Mac text fields); never while typing
     const mod = IS_MAC ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey;
-    if (cfg.hotkey && mod && !e.shiftKey && !e.altKey && e.code === 'KeyD') {
+    const isD = e.code ? e.code === 'KeyD' : String(e.key).toLowerCase() === 'd'; // some virtual keyboards send no code
+    if (cfg.hotkey && mod && !e.shiftKey && !e.altKey && isD) {
       if (isTextEntry(origin)) return;
       e.preventDefault();
       api.toggle();

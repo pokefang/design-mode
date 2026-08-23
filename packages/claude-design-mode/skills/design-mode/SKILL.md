@@ -27,7 +27,7 @@ moves it). Your job is the other half of the loop.
    `npx claude-design-mode wait <queueDir>` (default `.design-mode/queue` under cwd;
    pass the absolute path when the Vite root is a subfolder). It exits 0 when a
    payload lands, which re-invokes you; exit 2 is a timeout: re-arm it.
-4. Tell the user Design Mode is armed and how to toggle it (Cmd+D in the app page).
+4. Tell the user Design Mode is armed and how to toggle it (Cmd+D in the app page, Ctrl+D on Windows and Linux).
 
 ## Per payload (each time the watcher wakes you)
 

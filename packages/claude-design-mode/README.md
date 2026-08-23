@@ -25,7 +25,7 @@ next to your dev server and add
 development.
 
 Then, in a Claude Code session in the project, say "start design mode". In the
-page, `Cmd+D` toggles the inspector: click anything, type an instruction or
+page, `Cmd+D` (Ctrl+D on Windows and Linux) toggles the inspector: click anything, type an instruction or
 edit values (tokens are discovered from your own CSS), and "Ask Claude to
 commit".
 
