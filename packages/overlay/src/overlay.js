@@ -996,7 +996,9 @@
     u.textContent = `${Math.round(px)}px`;
     fieldKeys(inp, () => { inp.value = String(units); });
     inp.addEventListener('change', () => {
-      const n = Math.max(0, parseFloat(inp.value) || 0);
+      const parsed = parseFloat(inp.value);
+      if (inp.value.trim() === '' || Number.isNaN(parsed)) { inp.value = String(units); return; } // blank or junk: leave it alone
+      const n = Math.max(0, parsed);
       applyPreview(prop, `calc(var(--spacing) * ${n})`, { label: `spacing × ${n}`, primitive: `${n * base}px`, system: true });
       u.textContent = `${Math.round(n * base)}px`;
     });
@@ -1201,7 +1203,9 @@
     opacityIn.value = String(Math.round(parseFloat(cs.opacity) * 100));
     fieldKeys(opacityIn, () => { opacityIn.value = String(Math.round(parseFloat(cs.opacity) * 100)); });
     opacityIn.addEventListener('change', () => {
-      const v = Math.min(100, Math.max(0, parseFloat(opacityIn.value) || 0));
+      const parsed = parseFloat(opacityIn.value);
+      if (opacityIn.value.trim() === '' || Number.isNaN(parsed)) { opacityIn.value = String(Math.round(parseFloat(cs.opacity) * 100)); return; }
+      const v = Math.min(100, Math.max(0, parsed));
       applyPreview('opacity', String(v / 100), { label: `${v}%`, primitive: String(v / 100), system: true });
     });
     const opWrap = mk('unit'); const pct = mk('u', 'span'); pct.textContent = '%'; opWrap.append(opacityIn, pct);
