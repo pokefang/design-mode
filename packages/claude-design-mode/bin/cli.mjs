@@ -46,11 +46,14 @@ const detectPort = () => {
   }
   if (exists('package.json')) {
     try {
-      const dev = JSON.parse(read('package.json')).scripts?.dev || '';
-      const m = /(?:--port|-p)[ =](\d{2,5})/.exec(dev);
+      const pj = JSON.parse(read('package.json'));
+      const m = /(?:--port|-p)[ =](\d{2,5})/.exec(pj.scripts?.dev || '');
       if (m) return Number(m[1]);
+      // a Vite app with nothing configured serves on Vite's default
+      if (viteConfigFile() || pj.devDependencies?.vite || pj.dependencies?.vite) return 5173;
     } catch { /* ignore */ }
   }
+  if (viteConfigFile()) return 5173;
   return null;
 };
 const viteConfigFile = () => ['vite.config.ts', 'vite.config.js', 'vite.config.mts', 'vite.config.mjs'].find(exists) || null;
@@ -82,7 +85,7 @@ const init = () => {
     const launch = { version: '0.0.1', configurations: [{ name: projectName(), runtimeExecutable: 'npm', runtimeArgs: ['run', 'dev'], port }] };
     fs.mkdirSync(path.dirname(launchFile), { recursive: true });
     fs.writeFileSync(launchFile, JSON.stringify(launch, null, 2) + '\n');
-    done.push(`.claude/launch.json (name "${projectName()}", port ${port})`);
+    done.push(`.claude/launch.json (name "${projectName()}", port ${port}${port === 5173 ? ', Vite default; rerun with --port N if yours differs' : ''})`);
   }
 
   // 3. keep the queue out of git
@@ -109,10 +112,12 @@ const init = () => {
     say('No vite.config found. For any other dev server, run the standalone server alongside it:\n');
     say(`  npx claude-design-mode serve --app http://localhost:${port || 3000}\n`);
     say('and add this to your app shell in development only:\n');
-    say('  <script src="http://localhost:3850/__design-mode/boot.js"></script>');
+    say('  <script src="http://localhost:3850/__design-mode/boot.js" referrerpolicy="origin"></script>');
+    say('\n(referrerpolicy="origin" matters: it is how the server knows the request is from your app,');
+    say('even over https or with a strict referrer policy.)');
   }
   say('\nThen, in a Claude Code session in this project, say "start design mode".');
-  say('In the page: Cmd+D toggles the inspector, click anything, describe the change.');
+  say('In the page: Cmd+D (Ctrl+D on Windows and Linux) toggles the inspector; click anything, describe the change.');
 };
 
 switch (cmd) {

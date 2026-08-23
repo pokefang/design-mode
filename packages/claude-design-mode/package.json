@@ -3,17 +3,50 @@
   "version": "0.4.0",
   "type": "module",
   "description": "Click an element in your running app, describe the change or edit it in a Figma-style sidebar, and Claude Code edits the exact source line. Vite plugin + in-page overlay + session skill + wake watcher.",
+  "author": "Billy Mangino",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pokefang/design-mode.git",
+    "directory": "packages/claude-design-mode"
+  },
+  "homepage": "https://github.com/pokefang/design-mode#readme",
+  "bugs": "https://github.com/pokefang/design-mode/issues",
   "license": "MIT",
-  "keywords": ["claude", "claude-code", "design-mode", "vite-plugin", "inspector", "devtools"],
+  "keywords": [
+    "claude",
+    "claude-code",
+    "design-mode",
+    "vite-plugin",
+    "inspector",
+    "devtools"
+  ],
   "bin": {
     "claude-design-mode": "bin/cli.mjs"
   },
+  "scripts": {
+    "test": "node --test test/cli.test.mjs test/server.test.mjs"
+  },
   "exports": {
-    ".": "./src/vite.js",
-    "./vite": "./src/vite.js",
-    "./server": "./src/server.js",
-    "./overlay": "./src/overlay.js",
-    "./overlay.js": "./src/overlay.js",
+    ".": {
+      "types": "./src/vite.d.ts",
+      "default": "./src/vite.js"
+    },
+    "./vite": {
+      "types": "./src/vite.d.ts",
+      "default": "./src/vite.js"
+    },
+    "./server": {
+      "types": "./src/server.d.ts",
+      "default": "./src/server.js"
+    },
+    "./overlay": {
+      "types": "./src/overlay.d.ts",
+      "default": "./src/overlay.js"
+    },
+    "./overlay.js": {
+      "types": "./src/overlay.d.ts",
+      "default": "./src/overlay.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -21,7 +54,8 @@
     "src",
     "skills",
     ".claude-plugin",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "engines": {
     "node": ">=20"

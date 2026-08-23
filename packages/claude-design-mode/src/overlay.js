@@ -55,7 +55,8 @@
     active: false,
     promptOpen: false,
     picking: false,       // hover inspector stays on while the sidebar is open
-    linkSides: sessionStorage.getItem('__cdm_link_sides') === '1', // box model edits all four sides at once
+    // storage access itself can throw (sandboxed iframe, blocked cookies); never let that kill the overlay
+    linkSides: (() => { try { return sessionStorage.getItem('__cdm_link_sides') === '1'; } catch { return false; } })(), // box model edits all four sides at once
     trailLeaf: null,      // deepest element of the breadcrumb trail (children stay visible)
     dock: (() => { try { return sessionStorage.getItem('__cdm_dock') === 'left' ? 'left' : 'right'; } catch { return 'right'; } })(),
     promptExpanded: false,
@@ -72,6 +73,7 @@
   };
 
   try {
+    // the sessionStorage getter itself throws when storage is blocked; keep it inside the try
     const saved = JSON.parse(sessionStorage.getItem(STORAGE_KEY) || 'null');
     if (saved && Array.isArray(saved.queue)) {
       // delivered entries belong to the server queue; a fresh boot has a fresh
@@ -528,38 +530,62 @@
     return out;
   };
 
+  // Does a conditional at-rule apply right now? 'yes' / 'no' / 'maybe' (container/scope
+  // queries we cannot cheaply evaluate). Non-applying subtrees are skipped so a md: or
+  // dark: variant is never read as the element's current value on the wrong viewport.
+  const condCache = new Map();
+  const condState = (rule) => {
+    if (typeof CSSMediaRule !== 'undefined' && rule instanceof CSSMediaRule) {
+      const q = rule.conditionText || rule.media.mediaText;
+      if (!condCache.has(q)) { try { condCache.set(q, matchMedia(q).matches ? 'yes' : 'no'); } catch { condCache.set(q, 'maybe'); } }
+      return condCache.get(q);
+    }
+    if (typeof CSSSupportsRule !== 'undefined' && rule instanceof CSSSupportsRule) {
+      const q = 's:' + rule.conditionText;
+      if (!condCache.has(q)) { try { condCache.set(q, CSS.supports(rule.conditionText) ? 'yes' : 'no'); } catch { condCache.set(q, 'maybe'); } }
+      return condCache.get(q);
+    }
+    if ((typeof CSSContainerRule !== 'undefined' && rule instanceof CSSContainerRule)
+      || (typeof CSSScopeRule !== 'undefined' && rule instanceof CSSScopeRule)
+      || (typeof CSSStartingStyleRule !== 'undefined' && rule instanceof CSSStartingStyleRule)) return 'maybe';
+    return 'yes';
+  };
   const walkRules = (cb) => {
+    condCache.clear();
     for (const sheet of document.styleSheets) {
       let rules;
       try { rules = sheet.cssRules; } catch { continue; }
       const source = sheet.href
         || (sheet.ownerNode && sheet.ownerNode.getAttribute && sheet.ownerNode.getAttribute('data-vite-dev-id'))
         || 'inline';
-      const visit = (list, layer) => {
+      const visit = (list, layer, uncertain) => {
         for (const rule of list) {
-          if (cb(rule, source, layer) === false) return false;
+          if (cb(rule, source, layer, uncertain) === false) return false;
           if (rule.cssRules && rule.cssRules.length) {
             const nextLayer = (typeof CSSLayerBlockRule !== 'undefined' && rule instanceof CSSLayerBlockRule) ? rule.name : layer;
-            if (visit(rule.cssRules, nextLayer) === false) return false;
+            const c = condState(rule);
+            if (c === 'no') continue; // a non-matching @media/@supports subtree does not apply
+            if (visit(rule.cssRules, nextLayer, uncertain || c === 'maybe') === false) return false;
           }
         }
         return true;
       };
-      if (visit(rules, null) === false) return;
+      if (visit(rules, null, false) === false) return;
     }
   };
 
   const matchedRuleObjects = (target) => {
     const out = [];
     let scanned = 0;
-    walkRules((rule, source, layer) => {
+    walkRules((rule, source, layer, uncertain) => {
       if (scanned++ > MAX_RULE_SCAN || out.length >= MAX_RULES) return false;
       if (rule.selectorText) {
         try {
           if (target.matches(rule.selectorText)) {
-            // :hover/:active/:focus rules match while the pointer is still on the element;
-            // they are listed for the agent but never read as the element's resting value
-            const transient = /:(hover|active|focus|focus-visible|focus-within)\b/.test(rule.selectorText);
+            // :hover/:active/:focus rules match while the pointer is still on the element,
+            // and rules under @container/@scope may or may not apply; both are listed for
+            // the agent but never read as the element's resting value
+            const transient = uncertain || /:(hover|active|focus|focus-visible|focus-within)\b/.test(rule.selectorText);
             out.push({ rule, source, layer, transient });
           }
         } catch { /* unsupported selector */ }
@@ -2177,7 +2203,7 @@
       b.setAttribute('aria-pressed', String(state.linkSides));
       b.addEventListener('click', () => {
         state.linkSides = !state.linkSides;
-        sessionStorage.setItem('__cdm_link_sides', state.linkSides ? '1' : '0');
+        try { sessionStorage.setItem('__cdm_link_sides', state.linkSides ? '1' : '0'); } catch { /* memory only */ }
         b.classList.toggle('on', state.linkSides);
         b.setAttribute('aria-pressed', String(state.linkSides));
         b.title = t();

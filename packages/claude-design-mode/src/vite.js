@@ -28,27 +28,40 @@ export default function designMode(options = {}) {
   const tokenHints = serializeTokenHints(options.tokens);
   let root = process.cwd();
   let queueDir = '';
+  const warned = new Set();
 
   const stamp = (code, id) => {
     if (options.stamp === false) return null;
     const [file] = id.split('?');
     if (!/\.[jt]sx$/.test(file) || file.includes('node_modules')) return null;
     const relFile = path.relative(root, file).split(path.sep).join('/');
-    const result = transformSync(code, {
-      filename: file,
-      configFile: false,
-      babelrc: false,
-      sourceMaps: true,
-      retainLines: true,
-      parserOpts: { sourceType: 'module', plugins: ['jsx', 'typescript'] },
-      plugins: [[stampPlugin, { relFile }]],
-    });
-    return result ? { code: result.code, map: result.map } : null;
+    try {
+      const result = transformSync(code, {
+        filename: file,
+        configFile: false,
+        babelrc: false,
+        sourceMaps: true,
+        retainLines: true,
+        // decorators: esbuild accepts them, so the stamping parse must too
+        parserOpts: { sourceType: 'module', plugins: ['jsx', 'typescript', 'decorators-legacy'] },
+        plugins: [[stampPlugin, { relFile }]],
+      });
+      return result ? { code: result.code, map: result.map } : null;
+    } catch (e) {
+      // stamping is an aid, never a gate: an unparseable file loads unstamped
+      if (!warned.has(relFile)) {
+        warned.add(relFile);
+        console.warn(`[design-mode] could not stamp ${relFile} (${e.message ? e.message.split('\n')[0] : e}); serving it unstamped`);
+      }
+      return null;
+    }
   };
 
   return {
     name: 'design-mode',
-    apply: 'serve',
+    // dev serve only, and never inside Vitest: stamping test renders would
+    // break DOM snapshots, and tests have no use for the endpoint
+    apply: (_config, env) => env.command === 'serve' && env.mode !== 'test' && !process.env.VITEST,
     enforce: 'pre', // must run before @vitejs/plugin-react compiles JSX away
 
     configResolved(config) {

@@ -8,7 +8,11 @@ const BOOT_ROUTE = '/__design-mode/boot.js';
  * Standalone Design Mode server for apps that are not on Vite (Next, Remix,
  * Rails, Django, a static site...). The app adds one script tag in development:
  *
- *   <script src="http://localhost:3850/__design-mode/boot.js"></script>
+ *   <script src="http://localhost:3850/__design-mode/boot.js" referrerpolicy="origin"></script>
+ *
+ * referrerpolicy="origin" is required: the server identifies the requesting app
+ * by its Referer/Origin, and default browser policy strips the Referer on
+ * https -> http requests (and some frameworks set same-origin/no-referrer).
  *
  * boot.js carries this boot's token and loads the overlay; selections POST back
  * here and land in the queue dir exactly as with the Vite plugin. There is no
@@ -39,7 +43,8 @@ export function serve({ port = 3850, apps = [], queueDir, root = process.cwd(), 
       res.setHeader('content-type', 'application/javascript');
       res.setHeader('cache-control', 'no-store');
       if (!allowed) {
-        res.end(`console.warn('[design-mode] ${from || 'this page'} is not an allowed app origin; start the server with --app <origin>');`);
+        const who = from ? `${JSON.stringify(from).slice(1, -1)} is not an allowed app origin; start the server with --app <origin>` : 'the request carried no Referer or Origin, so the server cannot tell which app is asking; add referrerpolicy="origin" to the boot.js script tag (and check --app <origin>)';
+        res.end(`console.warn(${JSON.stringify(`[design-mode] ${who}`)});`);
         return;
       }
       const self = `http://localhost:${port}`;
@@ -59,7 +64,7 @@ export function serve({ port = 3850, apps = [], queueDir, root = process.cwd(), 
     log(`[design-mode] queue: ${path.relative(root, dir) || '.'}`);
     if (apps_.length) log(`[design-mode] allowed apps: ${apps_.join(', ')}`);
     else log('[design-mode] no --app origins given: pages cannot load the overlay until you pass --app http://localhost:<your-port>');
-    log(`[design-mode] add to your app (dev only): <script src="http://localhost:${port}${BOOT_ROUTE}"></script>`);
+    log(`[design-mode] add to your app (dev only): <script src="http://localhost:${port}${BOOT_ROUTE}" referrerpolicy="origin"></script>`);
   });
   return server;
 }

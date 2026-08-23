@@ -1,14 +1,17 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 export const OVERLAY_ROUTE = '/__design-mode/overlay.js';
 export const SELECTION_ROUTE = '/__design-mode/selection';
 export const HEALTH_ROUTE = '/__design-mode/health';
 export const MAX_BODY = 512 * 1024;
 
-export const overlayPath = () => new URL('./overlay.js', import.meta.url).pathname;
-export const skillDir = () => new URL('../skills/design-mode/', import.meta.url).pathname;
+// fileURLToPath, never URL.pathname: pathname is percent-encoded (a space is %20)
+// and carries a leading slash before the drive letter on Windows.
+export const overlayPath = () => fileURLToPath(new URL('./overlay.js', import.meta.url));
+export const skillDir = () => fileURLToPath(new URL('../skills/design-mode/', import.meta.url));
 export const newToken = () => randomBytes(16).toString('hex');
 
 /**
@@ -100,6 +103,10 @@ export function createHandler(opts) {
       return true;
     }
     if (req.method !== 'POST') { res.statusCode = 405; res.end(); return true; }
+    // set CORS headers before any check: the overlay must be able to READ a 403
+    // (to say "reload the page") even when the token rotated; corsHeaders only
+    // ever echoes an allowed origin, so this widens nothing
+    corsHeaders(req, res);
 
     if (!isLocalHost(req.headers.host)) {
       res.statusCode = 403;
@@ -122,7 +129,6 @@ export function createHandler(opts) {
       res.end('{"error":"json only"}');
       return true;
     }
-    corsHeaders(req, res);
 
     let size = 0;
     const chunks = [];

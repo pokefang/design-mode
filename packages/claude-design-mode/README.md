@@ -21,8 +21,9 @@ export default defineConfig({ plugins: [designMode(), react()] }) // designMode(
 
 Not on Vite? Run `npx claude-design-mode serve --app http://localhost:3000`
 next to your dev server and add
-`<script src="http://localhost:3850/__design-mode/boot.js"></script>` in
-development.
+`<script src="http://localhost:3850/__design-mode/boot.js" referrerpolicy="origin"></script>`
+in development (the `referrerpolicy` is how the server recognizes your app,
+even over https or with a strict referrer policy).
 
 Then, in a Claude Code session in the project, say "start design mode". In the
 page, `Cmd+D` (Ctrl+D on Windows and Linux) toggles the inspector: click anything, type an instruction or
@@ -48,9 +49,16 @@ patterns when naming conventions and value types are not enough.
 
 ## Security
 
-Dev-serve only. The selection endpoint requires a per-boot token in a custom
-header, an allowed Origin, and a local Host; constant-time comparison, JSON
-only, 512KB cap. Page content in payloads is labeled untrusted and the skill
-never treats it as instructions.
+Dev-serve only (never in builds, never under Vitest). The selection endpoint
+requires a per-boot token in a custom header, an allowed Origin, and a local
+Host; constant-time comparison, JSON only, 512KB cap. Page content in payloads
+is labeled untrusted and the skill never treats it as instructions. The token
+rotates on every dev-server restart; if the page stops delivering, reload it.
+
+## Uninstall
+
+Remove the plugin line from your Vite config, `npm rm claude-design-mode`, and
+delete `.claude/skills/design-mode/` and the `.design-mode/` queue dir. Nothing
+else is touched.
 
 Full docs and source: https://github.com/pokefang/design-mode

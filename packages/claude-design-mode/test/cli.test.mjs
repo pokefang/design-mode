@@ -4,8 +4,9 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const cli = new URL('../bin/cli.mjs', import.meta.url).pathname;
+const cli = fileURLToPath(new URL('../bin/cli.mjs', import.meta.url));
 const run = (cwd, ...args) => execFileSync('node', [cli, ...args], { cwd, encoding: 'utf8' });
 
 test('init is non-destructive and idempotent', () => {
@@ -35,6 +36,28 @@ test('init without vite points at the standalone server', () => {
   const out = run(dir, 'init');
   assert.match(out, /serve --app http:\/\/localhost:3000/);
   assert.match(out, /boot\.js/);
+});
+
+test('init works when the PACKAGE lives at a path containing a space', () => {
+  // regression: overlayPath()/skillDir() once used URL.pathname, which
+  // percent-encodes spaces (and breaks Windows drive letters), so init and the
+  // overlay route failed for any install under e.g. "~/My Projects/app"
+  const spacedPkg = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'cdm space ')), 'node_modules', 'claude-design-mode');
+  const here = path.dirname(path.dirname(cli));
+  fs.cpSync(path.join(here, 'bin'), path.join(spacedPkg, 'bin'), { recursive: true });
+  fs.cpSync(path.join(here, 'src'), path.join(spacedPkg, 'src'), { recursive: true });
+  fs.cpSync(path.join(here, 'skills'), path.join(spacedPkg, 'skills'), { recursive: true });
+  fs.copyFileSync(path.join(here, 'package.json'), path.join(spacedPkg, 'package.json'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cdm proj '));
+  fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name: 'spaced', scripts: { dev: 'vite' }, devDependencies: { vite: '^6' } }));
+  const out = execFileSync('node', [path.join(spacedPkg, 'bin', 'cli.mjs'), 'init'], { cwd: dir, encoding: 'utf8' });
+  assert.match(out, /wrote\s+\.claude\/skills\/design-mode\/SKILL\.md/);
+  assert.ok(fs.existsSync(path.join(dir, '.claude/skills/design-mode/SKILL.md')));
+  assert.ok(fs.existsSync(execFileSync('node', [path.join(spacedPkg, 'bin', 'cli.mjs'), 'overlay-path'], { cwd: dir, encoding: 'utf8' }).trim()));
+  // and a Vite app with no explicit port gets the Vite default
+  assert.match(out, /port 5173/);
+  const launch = JSON.parse(fs.readFileSync(path.join(dir, '.claude/launch.json'), 'utf8'));
+  assert.equal(launch.configurations[0].port, 5173);
 });
 
 test('overlay-path and skill-path resolve to shipped files', () => {

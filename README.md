@@ -6,8 +6,6 @@ that rendered it. The piece Cursor's Design Mode never shipped: a deterministic
 element-to-source map, plus token-aware edits that land in your design system's
 own vocabulary.
 
-Architecture doc: https://claude.ai/code/artifact/98ce2dbc-7694-4b69-8e40-2f5e7e5e6c5d
-
 ## Use it in your own app
 
 Two halves: the **app side** (an npm package that puts the inspector in your
@@ -45,8 +43,11 @@ npx claude-design-mode serve --app http://localhost:3000
 ```
 
 ```html
-<script src="http://localhost:3850/__design-mode/boot.js"></script>
+<script src="http://localhost:3850/__design-mode/boot.js" referrerpolicy="origin"></script>
 ```
+
+(`referrerpolicy="origin"` is required: it is how the server recognizes your
+app's origin, even over https or under a strict referrer policy.)
 
 Only pages from `--app` origins receive the token, and only those origins can
 POST selections. There is no JSX stamping in this mode; sources resolve from

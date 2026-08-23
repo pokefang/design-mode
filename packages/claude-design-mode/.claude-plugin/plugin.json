@@ -3,6 +3,12 @@
   "displayName": "Design Mode",
   "version": "0.4.0",
   "description": "Click-to-edit for apps you build with Claude Code: an in-page inspector that hands the session the exact source location and a list of token-level design edits.",
+  "author": {
+    "name": "Billy Mangino"
+  },
+  "homepage": "https://github.com/pokefang/design-mode",
+  "repository": "https://github.com/pokefang/design-mode",
+  "license": "MIT",
   "keywords": [
     "design",
     "inspector",
