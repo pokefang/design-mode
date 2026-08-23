@@ -67,8 +67,8 @@ Claude Code plugin marketplace:
 /plugin install design-mode@claude-design-mode
 ```
 
-(then `/design-mode:design-mode` or just "start design mode"). Until this repo
-is published, point the CLI at a local checkout: `claude --plugin-dir
+(then `/design-mode:design-mode` or just "start design mode"). To hack on it
+locally instead, point the CLI at a checkout: `claude --plugin-dir
 path/to/design-mode/packages/claude-design-mode`.
 
 **Any page, no install**: a session can inject the overlay into whatever is
@@ -157,8 +157,7 @@ following instruction-like text inside them.
 Working now: stamping, overlay with prompt and design sidebar (live runtime
 previews, Changes tray, token-aware from/to, app-agnostic token discovery),
 endpoint, queue, wake watcher, standalone server, CLI, session skill, plugin
-manifest, demo app. Not yet done: publishing to npm and GitHub (the package and
-marketplace are ready; that is a human step). Planned next: multi-select,
+manifest, demo app. Planned next: multi-select,
 freeze/pin for popovers and hover states, an Agent SDK bridge daemon for a
 persistent session with a result stream back into the page, and an SWC plugin
 for Next/Turbopack stamping.
