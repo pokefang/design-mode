@@ -56,6 +56,7 @@
     promptOpen: false,
     picking: false,       // hover inspector stays on while the sidebar is open
     trailLeaf: null,      // deepest element of the breadcrumb trail (children stay visible)
+    dock: (() => { try { return sessionStorage.getItem('__cdm_dock') === 'left' ? 'left' : 'right'; } catch { return 'right'; } })(),
     promptExpanded: false,
     draft: '',
     draftScope: 'auto',
@@ -118,7 +119,13 @@
     .btn.ghost { background: transparent; }
     .btn.sm { height: 22px; padding: 0 8px; font-size: 10.5px; }
     .btn.full { width: 100%; margin-top: 8px; }
-    .panel { position: fixed; top: 12px; right: 12px; bottom: 12px; width: 284px; display: none; flex-direction: column; pointer-events: auto; background: #1E1E1E; border: 1px solid #333; border-radius: 10px; box-shadow: 0 16px 48px rgba(0,0,0,0.5); overflow: hidden; }
+    .panel { position: fixed; top: 0; bottom: 0; right: 0; width: 300px; display: flex; flex-direction: column; pointer-events: none; visibility: hidden; transform: translateX(100%); transition: transform .22s ease, visibility 0s linear .22s; background: #1E1E1E; border-left: 1px solid #333; box-shadow: -8px 0 32px rgba(0,0,0,0.35); overflow: hidden; }
+    .panel.open { pointer-events: auto; visibility: visible; transform: none; transition: transform .22s ease, visibility 0s; }
+    .panel.left { right: auto; left: 0; border-left: none; border-right: 1px solid #333; box-shadow: 8px 0 32px rgba(0,0,0,0.35); transform: translateX(-100%); }
+    .panel.left.open { transform: none; }
+    .panel.dragging { transition: none; opacity: 0.92; }
+    .p-title { cursor: grab; }
+    .panel.dragging .p-title { cursor: grabbing; }
     .panel-scroll { flex: 1; overflow: auto; padding: 12px 12px 10px; }
     .p-title { font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 6px; min-width: 0; }
     .p-title .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -224,6 +231,55 @@
   pill.append(pillEsc);
   const syncPill = () => { pill.style.display = state.active && !state.promptOpen ? 'flex' : 'none'; };
   shadow.append(hi, hiLabel, ring, panel, toast, pill);
+
+  // Docking: the panel takes real space by pushing the page with an html margin
+  // on its side (animated together with the slide-in), so nothing hides under it.
+  const DOCK_W = 300;
+  const htmlStyle = document.documentElement.style;
+  let savedHtml = null;
+  const applyDock = () => {
+    const open = state.promptOpen;
+    if (savedHtml === null) savedHtml = { l: htmlStyle.marginLeft, r: htmlStyle.marginRight, t: htmlStyle.transition };
+    htmlStyle.transition = open ? 'margin-left .22s ease, margin-right .22s ease' : savedHtml.t;
+    htmlStyle.marginLeft = open && state.dock === 'left' ? `${DOCK_W}px` : savedHtml.l;
+    htmlStyle.marginRight = open && state.dock === 'right' ? `${DOCK_W}px` : savedHtml.r;
+    panel.classList.toggle('left', state.dock === 'left');
+    panel.classList.toggle('open', open);
+    toast.style.left = open && state.dock === 'left' ? `${DOCK_W + 14}px` : '14px';
+    // keep the ring and hover box glued while the page reflows
+    const t0 = performance.now();
+    const loop = () => { reposition(); if (performance.now() - t0 < 320) requestAnimationFrame(loop); };
+    requestAnimationFrame(loop);
+  };
+  const setDock = (side) => {
+    state.dock = side === 'left' ? 'left' : 'right';
+    try { sessionStorage.setItem('__cdm_dock', state.dock); } catch { /* fine */ }
+    applyDock();
+    if (state.dockBtn) state.dockBtn.title = `Docked ${state.dock}: click to dock ${state.dock === 'left' ? 'right' : 'left'}, or drag the header`;
+  };
+  // drag the header to snap the panel to the other edge
+  let panelDrag = null;
+  panel.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || !e.target.closest || !e.target.closest('.p-title') || e.target.closest('button')) return;
+    panelDrag = { x: e.clientX, moved: false, id: e.pointerId };
+    try { panel.setPointerCapture(e.pointerId); } catch { /* fine */ }
+  });
+  panel.addEventListener('pointermove', (e) => {
+    if (!panelDrag || e.pointerId !== panelDrag.id) return;
+    const dx = e.clientX - panelDrag.x;
+    if (!panelDrag.moved && Math.abs(dx) > 6) { panelDrag.moved = true; panel.classList.add('dragging'); }
+    if (panelDrag.moved) panel.style.transform = `translateX(${dx}px)`;
+  });
+  const endPanelDrag = (e) => {
+    if (!panelDrag || (e && e.pointerId !== panelDrag.id)) return;
+    const { moved } = panelDrag;
+    panelDrag = null;
+    panel.classList.remove('dragging');
+    panel.style.transform = '';
+    if (moved && e) setDock(e.clientX < innerWidth / 2 ? 'left' : 'right');
+  };
+  panel.addEventListener('pointerup', endPanelDrag);
+  panel.addEventListener('pointercancel', endPanelDrag);
 
   const ensureMounted = () => { if (!host.isConnected) document.documentElement.append(host); };
   ensureMounted();
@@ -1100,6 +1156,7 @@
 
   /* -------------------------------------------------------------- panel --- */
 
+  const DOCK_ICON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M10 3v10"/><path d="M4.5 8h3M6.5 6.5 8 8l-1.5 1.5"/></svg>';
   const PICK_ICON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5H3a.5.5 0 0 0-.5.5v3M10 2.5h3a.5.5 0 0 1 .5.5v3M6 13.5H3a.5.5 0 0 1-.5-.5v-3"/><path d="M8 8l5.5 2-2.4 1.1L10 13.5z" fill="currentColor" stroke="none"/></svg>';
 
   // The hover inspector normally rests once something is selected; picking keeps it on
@@ -1136,6 +1193,11 @@
     const title = mk('p-title');
     title.innerHTML = `<span class="name">${esc(chain[0] || target.tagName.toLowerCase())}</span><span class="tag">&lt;${esc(target.tagName.toLowerCase())}&gt;</span>`;
     const btns = mk('hdr-btns');
+    const dockBtn = mk('kbtn', 'button');
+    dockBtn.innerHTML = DOCK_ICON;
+    dockBtn.title = `Docked ${state.dock}: click to dock ${state.dock === 'left' ? 'right' : 'left'}, or drag the header`;
+    dockBtn.addEventListener('click', () => setDock(state.dock === 'left' ? 'right' : 'left'));
+    state.dockBtn = dockBtn;
     const pickBtn = mk('kbtn' + (state.picking ? ' on' : ''), 'button');
     pickBtn.innerHTML = PICK_ICON;
     pickBtn.title = 'Inspect: highlight elements on hover and click to select another (sidebar stays open)';
@@ -1146,7 +1208,7 @@
     escBtn.textContent = 'esc';
     escBtn.title = 'Close (Esc)';
     escBtn.addEventListener('click', () => closePrompt());
-    btns.append(pickBtn, escBtn);
+    btns.append(dockBtn, pickBtn, escBtn);
     title.append(btns);
     const sub = mk('p-sub');
     sub.textContent = chain.slice(1).join(' ← ');
@@ -1224,7 +1286,7 @@
       section('Typography', typography),
       section('Appearance', appearance),
     );
-    panel.style.display = 'flex';
+    if (!panel.classList.contains('open')) applyDock();
     panelScroll.scrollTop = scrollTop;
     renderTray();
     renderCrumbs(target);
@@ -1355,7 +1417,7 @@
     state.picking = false;
     state.selectedEl = null;
     state.trailLeaf = null;
-    panel.style.display = 'none';
+    applyDock();
     syncPill();
     ring.style.display = 'none';
     crumbs.style.display = 'none';
@@ -1390,6 +1452,13 @@
   };
   window.addEventListener('scroll', onScrollOrResize, { capture: true, passive: true });
   window.addEventListener('resize', onScrollOrResize);
+  // any page reflow (dock margin, HMR layout change) re-glues the boxes, even if rAF was paused
+  if (typeof ResizeObserver !== 'undefined') {
+    const ro = new ResizeObserver(() => reposition());
+    ro.observe(document.documentElement);
+    if (document.body) ro.observe(document.body);
+  }
+  document.documentElement.addEventListener('transitionend', (e) => { if (e.target === document.documentElement) reposition(); });
 
   /* ------------------------------------------------------------- events --- */
 
