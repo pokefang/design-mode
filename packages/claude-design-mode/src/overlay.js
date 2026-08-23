@@ -55,6 +55,7 @@
     active: false,
     promptOpen: false,
     picking: false,       // hover inspector stays on while the sidebar is open
+    linkSides: sessionStorage.getItem('__cdm_link_sides') === '1', // box model edits all four sides at once
     trailLeaf: null,      // deepest element of the breadcrumb trail (children stay visible)
     dock: (() => { try { return sessionStorage.getItem('__cdm_dock') === 'left' ? 'left' : 'right'; } catch { return 'right'; } })(),
     promptExpanded: false,
@@ -131,9 +132,10 @@
     .p-title .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .p-title .tag { color: #9B9B9B; font-weight: 400; font-size: 11px; }
     .p-sub { color: #8FB2FF; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .p-src { color: #9B9B9B; font-size: 10.5px; margin-top: 6px; word-break: break-all; }
+    .p-src { color: #9B9B9B; font-size: 10.5px; margin-top: 6px; word-break: break-all; background: none; border: 0; padding: 0; text-align: left; cursor: pointer; white-space: normal; }
+    .p-src:hover { color: #E8E8E8; }
     .p-classes { color: #9B9B9B; font-size: 10.5px; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .flag { color: #E8963C; font-size: 10.5px; margin-top: 5px; }
+    .flag { color: #E8963C; font-size: 10.5px; margin-top: 5px; display: flex; align-items: center; gap: 4px; }
     .sec { border-top: 1px solid #2C2C2C; margin-top: 10px; padding-top: 8px; }
     .sec-h { display: flex; align-items: center; justify-content: space-between; font-weight: 600; font-size: 11.5px; margin-bottom: 6px; cursor: pointer; user-select: none; }
     .sec-h .chev { color: #9B9B9B; font-size: 10px; transition: transform .12s; }
@@ -147,22 +149,34 @@
     .seg button:hover { color: #E8E8E8; }
     .seg button.on { background: #3F3F3F; color: #E8E8E8; }
     .seg svg { width: 14px; height: 14px; display: block; }
-    .bm { position: relative; background: #232323; border: 1px solid #3A3A3A; border-radius: 6px; padding: 22px 38px; margin-top: 4px; }
-    .bp { position: relative; background: #1A1A1A; border: 1px solid #3A3A3A; border-radius: 4px; padding: 22px 38px; }
-    .bc { height: 18px; display: flex; align-items: center; justify-content: center; color: #9B9B9B; font-size: 10px; white-space: nowrap; }
-    .bm-l { position: absolute; top: 4px; left: 7px; font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase; color: #9B9B9B; cursor: default; user-select: none; }
+    .bm { position: relative; background: #303030; border: 1px solid #3E3E3E; border-radius: 8px; padding: 24px 40px; margin-top: 4px; }
+    .bp { position: relative; background: #242424; border: 1px solid #383838; border-radius: 6px; padding: 24px 40px; }
+    .bc { height: 22px; display: flex; align-items: center; justify-content: center; color: #8A8A8A; font-size: 10px; white-space: nowrap; background: #181818; border: 1px solid #303030; border-radius: 4px; }
+    /* corner-to-corner guides between the rings, drawn with gradients so they cost no layout */
+    .diag { position: absolute; width: 40px; height: 24px; pointer-events: none; --dg: #454545; }
+    .bp > .diag { --dg: #363636; }
+    .diag.tl { top: 0; left: 0; background: linear-gradient(to bottom left, transparent calc(50% - .5px), var(--dg) calc(50% - .5px), var(--dg) calc(50% + .5px), transparent calc(50% + .5px)); }
+    .diag.tr { top: 0; right: 0; background: linear-gradient(to bottom right, transparent calc(50% - .5px), var(--dg) calc(50% - .5px), var(--dg) calc(50% + .5px), transparent calc(50% + .5px)); }
+    .diag.bl { bottom: 0; left: 0; background: linear-gradient(to bottom right, transparent calc(50% - .5px), var(--dg) calc(50% - .5px), var(--dg) calc(50% + .5px), transparent calc(50% + .5px)); }
+    .diag.br { bottom: 0; right: 0; background: linear-gradient(to bottom left, transparent calc(50% - .5px), var(--dg) calc(50% - .5px), var(--dg) calc(50% + .5px), transparent calc(50% + .5px)); }
+    .bm-l { position: absolute; top: 5px; left: 8px; font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase; color: #8A8A8A; cursor: default; user-select: none; z-index: 1; }
     .bm-l.mod { color: #8FB2FF; }
-    .bx { position: absolute; width: 34px; height: 18px; padding: 0; border: none; border-radius: 3px; background: transparent; color: #E8E8E8; font: inherit; font-size: 10.5px; text-align: center; outline: none; }
-    .bx:hover { background: #2F2F2F; }
-    .bx:focus { background: #2F2F2F; box-shadow: inset 0 0 0 1px #0C8CE9; }
+    .bx { position: absolute; width: 34px; height: 18px; padding: 0; border: none; border-radius: 3px; background: transparent; color: #E8E8E8; font: inherit; font-size: 11px; text-align: center; outline: none; z-index: 1; }
+    .bx:hover { background: rgba(255,255,255,0.08); }
+    .bx:focus { background: rgba(255,255,255,0.08); box-shadow: inset 0 0 0 1px #0C8CE9; }
     .bx.mod { color: #8FB2FF; }
     .bx, .ctl.num, .ctl.scale { cursor: ew-resize; }
     .bx:focus, .ctl.num:focus, .ctl.scale:focus { cursor: text; }
     .scrubbing, .scrubbing * { user-select: none !important; cursor: ew-resize !important; }
-    .bx.t { top: 2px; left: 50%; transform: translateX(-50%); }
-    .bx.b { bottom: 2px; left: 50%; transform: translateX(-50%); }
-    .bx.l { left: 2px; top: 50%; transform: translateY(-50%); }
-    .bx.r { right: 2px; top: 50%; transform: translateY(-50%); }
+    .bx.t { top: 3px; left: 50%; transform: translateX(-50%); }
+    .bx.b { bottom: 3px; left: 50%; transform: translateX(-50%); }
+    .bx.l { left: 3px; top: 50%; transform: translateY(-50%); }
+    .bx.r { right: 3px; top: 50%; transform: translateY(-50%); }
+    .sec-h .acts { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; margin-right: 8px; }
+    .sec-h .sbtn { width: 20px; height: 18px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 4px; background: transparent; color: #9B9B9B; padding: 0; }
+    .sec-h .sbtn:hover { background: #2F2F2F; color: #E8E8E8; }
+    .sec-h .sbtn.on { color: #0C8CE9; background: rgba(12,140,233,0.15); }
+    .sec-h .sbtn svg { width: 14px; height: 14px; display: block; }
     .ctl { height: 26px; width: 100%; min-width: 0; background: #2B2B2B; border: 1px solid transparent; border-radius: 6px; color: #E8E8E8; font: inherit; padding: 0 8px; outline: none; }
     .ctl:hover { border-color: #3A3A3A; }
     .ctl:focus { border-color: #0C8CE9; }
@@ -185,7 +199,9 @@
     .swatched { display: grid; grid-template-columns: auto 1fr; gap: 6px; align-items: center; min-width: 0; }
     .sw { width: 16px; height: 16px; border-radius: 4px; border: 1px solid #3A3A3A; }
     .prim { color: #9B9B9B; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; grid-column: 2; margin-top: -1px; }
-    .dot { width: 6px; height: 6px; border-radius: 50%; background: #E8963C; display: inline-block; flex: none; }
+    .dot { width: 6px; height: 6px; border-radius: 50%; background: #8FB2FF; display: inline-block; flex: none; }
+    .hc { display: inline-flex; width: 9px; height: 9px; color: #E8963C; flex: none; vertical-align: -1px; }
+    .hc svg { width: 100%; height: 100%; display: block; }
     .tray { border-top: 1px solid #333; background: #232323; padding: 10px 12px; }
     .tray-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-weight: 600; min-width: 0; }
     .tray-h .count { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
@@ -313,8 +329,19 @@
   panel.addEventListener('pointerup', endPanelDrag);
   panel.addEventListener('pointercancel', endPanelDrag);
 
-  const ensureMounted = () => { if (!host.isConnected) document.documentElement.append(host); };
+  // One light-DOM rule so the page itself shows the inspect cursor while picking; our UI keeps its own.
+  const pageStyle = document.createElement('style');
+  pageStyle.setAttribute('data-cdm-style', '');
+  pageStyle.textContent = 'html[data-cdm-inspecting], html[data-cdm-inspecting] * { cursor: crosshair !important; } html[data-cdm-inspecting] [data-cdm-ui] { cursor: auto !important; }';
+  const ensureMounted = () => {
+    if (!host.isConnected) document.documentElement.append(host);
+    if (!pageStyle.isConnected) (document.head || document.documentElement).append(pageStyle);
+  };
   ensureMounted();
+  // Inspecting = hover highlights and clicks select. True while nothing is selected, or while
+  // the pick toggle is on with the sidebar open. Otherwise the page is a normal, interactive page.
+  const inspecting = () => state.active && (!state.promptOpen || state.picking);
+  const syncCursor = () => document.documentElement.toggleAttribute('data-cdm-inspecting', inspecting());
 
   let toastTimer = null;
   const showToast = (text, ms = 3500) => {
@@ -510,36 +537,108 @@
   ];
 
   /* token: var() chain · utility: framework class with a literal (rounded-full)
-   * hardcoded: inline/user literal or arbitrary-value utility · reset: preflight */
+   * hardcoded: inline/user literal or arbitrary-value utility · reset: preflight · keyword: inherit/none/0 etc. */
+  // Plain CSS writes shorthands (background: var(--brand), padding: var(--s2) var(--s4),
+  // border: 1px solid var(--line), font: ...). The CSSOM cannot expand a shorthand that
+  // contains var(), so longhands are traced through their shorthands too.
+  const SHORTHANDS = {
+    'background-color': ['background'],
+    'border-color': ['border', 'border-top', 'border-right', 'border-bottom', 'border-left'],
+    'font-size': ['font'], 'font-family': ['font'], 'font-weight': ['font'], 'line-height': ['font'],
+    'padding-top': ['padding-block', 'padding'], 'padding-bottom': ['padding-block', 'padding'],
+    'padding-left': ['padding-inline', 'padding'], 'padding-right': ['padding-inline', 'padding'],
+    'padding-inline': ['padding'], 'padding-block': ['padding'],
+    'margin-top': ['margin-block', 'margin'], 'margin-bottom': ['margin-block', 'margin'],
+    'margin-left': ['margin-inline', 'margin'], 'margin-right': ['margin-inline', 'margin'],
+    'margin-inline': ['margin'], 'margin-block': ['margin'],
+  };
+  const FAMILY_OF = {
+    color: 'color', 'background-color': 'color', 'border-color': 'color', 'font-family': 'fontFamily',
+    'font-size': 'fontSize', 'font-weight': 'fontWeight', 'line-height': 'lineHeight', 'letter-spacing': 'tracking',
+    'border-radius': 'radius', 'box-shadow': 'shadow',
+  };
+  const splitTop = (v) => {
+    const out = []; let depth = 0; let cur = '';
+    for (const ch of v) {
+      if (ch === '(') depth++;
+      if (ch === ')') depth--;
+      if (/\s/.test(ch) && depth === 0) { if (cur) out.push(cur); cur = ''; } else cur += ch;
+    }
+    if (cur) out.push(cur);
+    return out;
+  };
+  // the piece of a box shorthand that applies to one longhand; null when it cannot be told
+  const sidePiece = (sh, prop, value) => {
+    const parts = splitTop(value);
+    if (!parts.length || parts.length > 4) return null;
+    const n = parts.length;
+    const sub = prop.slice(prop.indexOf('-') + 1); // top | right | bottom | left | inline | block
+    if (/-(inline|block)$/.test(sh)) {
+      // 2-value: start end
+      if (sub === 'top' || sub === 'left') return parts[0];
+      if (sub === 'bottom' || sub === 'right') return parts[n > 1 ? 1 : 0];
+      return null;
+    }
+    const idx = { top: 0, right: n > 1 ? 1 : 0, bottom: n > 2 ? 2 : 0, left: n > 3 ? 3 : n > 1 ? 1 : 0 };
+    if (sub in idx) return parts[idx[sub]];
+    if (sub === 'inline') return parts[idx.left] === parts[idx.right] ? parts[idx.right] : null;
+    if (sub === 'block') return parts[idx.top] === parts[idx.bottom] ? parts[idx.top] : null;
+    return null;
+  };
+  const noBorder = (cs) => ['top', 'right', 'bottom', 'left'].every((sd) =>
+    cs.getPropertyValue(`border-${sd}-style`) === 'none' || parseFloat(cs.getPropertyValue(`border-${sd}-width`)) === 0);
+
   const tokenTrace = (target, ruleObjs) => {
     const cs = getComputedStyle(target);
     const index = customProps();
     const out = {};
+    const authoredIn = (name) => {
+      const inline = target.style.getPropertyValue(name).trim();
+      if (inline) return { v: inline, layer: 'inline', selector: null, from: 'inline style' };
+      let best = null;
+      for (const obj of ruleObjs) {
+        const v = obj.rule.style && obj.rule.style.getPropertyValue(name).trim();
+        if (!v) continue;
+        if (!best || obj.layer !== 'base' || best.layer === 'base') best = { ...obj, v };
+      }
+      return best ? { v: best.v, layer: best.layer, selector: best.rule.selectorText, from: `${best.rule.selectorText} · ${String(best.source).split('/').pop()}` } : null;
+    };
     for (const prop of TRACE_PROPS) {
-      let authored = target.style.getPropertyValue(prop).trim();
-      let from = authored ? 'inline style' : null;
-      let layer = authored ? 'inline' : null;
-      let selector = null;
-      if (!authored) {
-        let best = null;
-        for (const obj of ruleObjs) {
-          const v = obj.rule.style && obj.rule.style.getPropertyValue(prop).trim();
-          if (!v) continue;
-          if (!best || obj.layer !== 'base' || best.layer === 'base') best = { ...obj, v };
-        }
-        if (best) {
-          authored = best.v;
-          layer = best.layer;
-          selector = best.rule.selectorText;
-          from = `${selector} · ${String(best.source).split('/').pop()}`;
+      if (prop === 'border-color' && noBorder(cs)) continue; // no border: its colour is moot
+      let hit = authoredIn(prop);
+      let viaShorthand = null;
+      if (!hit && SHORTHANDS[prop]) {
+        for (const sh of SHORTHANDS[prop]) {
+          const h = authoredIn(sh);
+          if (!h) continue;
+          if (/^(padding|margin)/.test(sh)) {
+            const piece = sidePiece(sh, prop, h.v);
+            if (piece === null) continue;
+            hit = { ...h, v: piece };
+          } else {
+            hit = h;
+          }
+          viaShorthand = sh;
+          break;
         }
       }
-      if (!authored) continue;
+      if (!hit) continue;
+      let { v: authored, layer, selector, from } = hit;
+      if (viaShorthand) from = `${from} (via ${viaShorthand})`;
       const chain = [];
       let cur = authored;
       let guard = 0;
+      let skip = false;
       while (guard++ < 6) {
-        const names = [...cur.matchAll(/var\(\s*(--[A-Za-z0-9_-]+)/g)].map((m) => m[1]);
+        let names = [...cur.matchAll(/var\(\s*(--[A-Za-z0-9_-]+)/g)].map((m) => m[1]);
+        if (viaShorthand && !/^(padding|margin)/.test(viaShorthand) && guard === 1) {
+          // a mixed shorthand (font, border, background): keep only tokens that fit this longhand
+          const fam = FAMILY_OF[prop];
+          const fitting = names.filter((nm) => fam && tokenFits(fam, nm));
+          if (names.length && !fitting.length) { skip = true; break; } // tokens there, none for this longhand
+          if (!names.length) authored = cs.getPropertyValue(prop).trim(); // literal shorthand: show the longhand's value
+          names = fitting;
+        }
         if (!names.length) break;
         let picked = names[0];
         let def = '';
@@ -553,10 +652,12 @@
         if (!def || !VAR_RE.test(def)) break;
         cur = def;
       }
+      if (skip) continue;
       let computed = cs.getPropertyValue(prop).trim();
       if (!computed) computed = cs.getPropertyValue(`${prop}-start`).trim();
       let status;
       if (chain.length) status = 'token';
+      else if (/^(inherit|initial|unset|revert|revert-layer|currentcolor|transparent|none|normal|auto|0)$/i.test(authored)) status = 'keyword'; // not a design decision to flag
       else if (layer === 'base') status = 'reset';
       else if (layer === 'utilities') status = selector && selector.includes('\\[') ? 'hardcoded' : 'utility';
       else status = 'hardcoded';
@@ -955,7 +1056,7 @@
   const changeRow = (elx, c, onRevert) => {
     const row = mk('chg');
     const what = mk('what');
-    what.innerHTML = `<span class="who">${esc(elLabel(elx))}</span> <b>${esc(c.prop)}</b> ${esc(labelFor(c.from))}<span class="arrow">→</span>${esc(labelFor(c.to))}${c.to.hardcoded ? ' <span class="dot" title="hardcoded value"></span>' : ''}`;
+    what.innerHTML = `<span class="who">${esc(elLabel(elx))}</span> <b>${esc(c.prop)}</b> ${esc(labelFor(c.from))}<span class="arrow">→</span>${esc(labelFor(c.to))}${c.to.hardcoded ? ' ' + HC_HTML('hardcoded value') : ''}`;
     what.title = `${c.from.primitive} → ${c.to.primitive}${c.to.hardcoded ? ' (hardcoded)' : ''}`;
     const x = mk('x', 'button');
     x.textContent = '✕';
@@ -969,14 +1070,14 @@
   const renderTray = () => {
     const n = pendingCount();
     const committed = state.committed.reduce((k, c) => k + c.changes.length, 0);
-    if (!n && !committed) { tray.style.display = 'none'; return; }
+    if (!n && !committed) { tray.style.display = 'none'; tray.innerHTML = ''; return; }
     tray.style.display = 'block';
     tray.innerHTML = '';
     if (n) {
       const hard = [...state.pending.values()].reduce((k, m) => k + [...m.values()].filter((c) => c.to.hardcoded).length, 0);
       const h = mk('tray-h');
       const count = mk('count', 'span');
-      count.innerHTML = `${n} change${n > 1 ? 's' : ''}${hard ? ` <span class="dot" title="hardcoded values"></span>` : ''}`;
+      count.innerHTML = `${n} change${n > 1 ? 's' : ''}${hard ? ' ' + HC_HTML(`${hard} hardcoded value${hard > 1 ? 's' : ''}`) : ''}`;
       count.title = hard ? `${hard} hardcoded value${hard > 1 ? 's' : ''}` : 'previewing on the page';
       const discard = mk('btn sm ghost', 'button');
       discard.textContent = 'Discard';
@@ -1147,11 +1248,18 @@
   }, { passive: true });
 
   const hasPending = (prop) => { const m = state.selectedEl && state.pending.get(state.selectedEl); return !!(m && m.has(prop)); };
+  // the changed dot beside a label: present exactly when the row has a pending change
+  const markDot = (l) => {
+    const mod = l.classList.contains('mod');
+    let d = l.querySelector(':scope > .dot');
+    if (mod && !d) { d = mk('dot', 'span'); d.title = 'Changed'; l.append(d); }
+    if (!mod && d) d.remove();
+  };
   const refreshModMarks = () => {
     panelScroll.querySelectorAll('[data-props]').forEach((l) => {
       const mod = l.dataset.props.split(' ').some(hasPending);
       l.classList.toggle('mod', mod);
-      if (l.classList.contains('lbl')) l.title = (mod ? 'Changed · ' : '') + 'Double-click to reset';
+      if (l.classList.contains('lbl')) { l.title = (mod ? 'Changed · ' : '') + 'Double-click to reset'; markDot(l); }
     });
     panelScroll.querySelectorAll('.bx[data-prop]').forEach((i) => i.classList.toggle('mod', hasPending(i.dataset.prop)));
   };
@@ -1169,11 +1277,15 @@
 
   // opts.props: the CSS props this row edits; double-click the label to reset them,
   // and the label tints while any of them has a pending change
+  // hardcoded marker: a literal with no token behind it
+  const HC_SVG = '<svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"><path d="M5 1.5 9 8.5H1z"/><path d="M5 4v2.2" stroke-linecap="round"/></svg>';
+  const hcGlyph = (title = 'Hardcoded value (no token behind it)') => { const g = mk('hc', 'span'); g.innerHTML = HC_SVG; g.title = title; g.setAttribute('aria-label', 'hardcoded'); return g; };
+  const HC_HTML = (title = 'hardcoded value') => `<span class="hc" title="${title}">${HC_SVG}</span>`;
+
   const row = (label, control, opts = {}) => {
     const r = mk('row');
     const l = mk('lbl');
     l.textContent = label;
-    if (opts.hardcoded) { const d = mk('dot', 'span'); d.title = 'hardcoded value'; l.append(d); }
     if (opts.tip) r.title = opts.tip;
     if (opts.props && opts.props.length) {
       l.dataset.props = opts.props.join(' ');
@@ -1182,6 +1294,8 @@
       l.title = (mod ? 'Changed · ' : '') + 'Double-click to reset';
       l.addEventListener('dblclick', (e) => { e.preventDefault(); revertProps(opts.props); });
     }
+    if (opts.hardcoded) l.append(hcGlyph());
+    markDot(l);
     r.append(l, control);
     return r;
   };
@@ -1334,9 +1448,13 @@
       const startPx = () => Math.round(parseFloat(getComputedStyle(state.selectedEl).getPropertyValue(prop)) || 0);
       const setPx = (v) => {
         const vv = allowNegative ? v : Math.max(0, v);
-        previewSpacingPx(prop, vv);
-        inp.value = String(normPx(vv));
-        inp.classList.add('mod');
+        const fam = prop.split('-')[0];
+        const targets = state.linkSides ? SIDES.map((sd) => `${fam}-${sd}`) : [prop];
+        for (const tp of targets) {
+          previewSpacingPx(tp, vv);
+          const f = tp === prop ? inp : bm.querySelector(`.bx[data-prop="${tp}"]`);
+          if (f) { f.value = String(normPx(vv)); f.classList.add('mod'); }
+        }
       };
       let scrubBase = 0;
       scrub(inp, {
@@ -1376,9 +1494,10 @@
     };
     const mProps = SIDES.map((sd) => `margin-${sd}`).concat(['margin', 'margin-inline', 'margin-block']);
     const pProps = SIDES.map((sd) => `padding-${sd}`).concat(['padding', 'padding-inline', 'padding-block']);
-    bm.append(label('Margin', mProps), ...SIDES.map((sd) => field(`margin-${sd}`, sd[0], true)));
+    const diags = () => ['tl', 'tr', 'bl', 'br'].map((c) => mk(`diag ${c}`));
+    bm.append(...diags(), label('Margin', mProps), ...SIDES.map((sd) => field(`margin-${sd}`, sd[0], true)));
     const bp = mk('bp');
-    bp.append(label('Padding', pProps), ...SIDES.map((sd) => field(`padding-${sd}`, sd[0], false)));
+    bp.append(...diags(), label('Padding', pProps), ...SIDES.map((sd) => field(`padding-${sd}`, sd[0], false)));
     const bc = mk('bc');
     bc.textContent = `${Math.round(rect.width)} × ${Math.round(rect.height)}`;
     bc.title = 'Rendered size';
@@ -1410,13 +1529,24 @@
     const cs = getComputedStyle(state.selectedEl);
     let current = semanticName(t) || (t ? t.authored : '') || cs.getPropertyValue(prop).trim();
     if (current === 'rgba(0, 0, 0, 0)') current = 'transparent';
+    const borderless = prop === 'border-color' && noBorder(cs);
+    if (borderless) current = 'none';
     const wrap = mk(swatch ? 'swatched' : '');
     let sw = null;
-    if (swatch) { sw = mk('sw', 'span'); sw.style.background = cs.getPropertyValue(prop); wrap.append(sw); }
+    if (swatch) { sw = mk('sw', 'span'); sw.style.background = borderless ? 'transparent' : cs.getPropertyValue(prop); wrap.append(sw); }
+    // the primitive under a colour field is shown only when it says more than the field itself
+    const norm = (v) => String(v || '').toLowerCase().replace(/\s+/g, '');
+    const setPrim = (value) => {
+      const el = wrap.querySelector('.prim');
+      if (!el) return;
+      const show = value && inp.value !== 'none' && norm(value) !== norm(inp.value) && norm(value) !== norm(inp.value.replace(/^--/, ''));
+      el.textContent = show ? value : '';
+      el.style.display = show ? '' : 'none';
+    };
     const inp = mk('ctl', 'input');
     inp.type = 'text';
     inp.value = current;
-    inp.title = tipFor(t);
+    inp.title = borderless ? 'No border on this element' : tipFor(t);
     inp.autocomplete = 'off';
     inp.spellcheck = false;
     inp.setAttribute('data-cdm-field', '');
@@ -1438,11 +1568,13 @@
         applyPreview(prop, `var(${name})`, { token: name, primitive: prim });
         if (sw) sw.style.background = prim;
         inp.value = name.replace(/^--/, '');
+        setPrim(prim);
       } else if (special && special[raw]) {
         applyPreview(prop, special[raw].css, { label: raw, primitive: special[raw].css, system: true });
       } else {
         applyPreview(prop, raw, { primitive: raw });
         if (sw) sw.style.background = raw;
+        setPrim(raw);
       }
       current = inp.value;
     };
@@ -1477,8 +1609,8 @@
     wrap.append(inp);
     if (swatch) {
       const prim = mk('prim');
-      prim.textContent = primitiveOf(t, cs.getPropertyValue(prop).trim());
       wrap.append(prim);
+      setPrim(primitiveOf(t, cs.getPropertyValue(prop).trim()));
     }
     return { node: wrap, hardcoded: !!t && t.status === 'hardcoded', tip: tipFor(t) };
   };
@@ -1556,10 +1688,15 @@
     return { node: wrap, hardcoded: !!t && t.status === 'hardcoded', tip: tipFor(t) };
   };
 
-  const section = (title, rows) => {
+  const section = (title, rows, actions = []) => {
     const s = mk('sec' + (state.collapsed.has(title) ? ' closed' : ''));
     const h = mk('sec-h');
     h.innerHTML = `<span>${esc(title)}</span><span class="chev">&#9660;</span>`;
+    if (actions.length) {
+      const acts = mk('acts', 'span');
+      actions.forEach((a) => { a.addEventListener('click', (e) => e.stopPropagation()); acts.append(a); });
+      h.insertBefore(acts, h.querySelector('.chev'));
+    }
     h.addEventListener('click', () => {
       s.classList.toggle('closed');
       if (s.classList.contains('closed')) state.collapsed.add(title); else state.collapsed.delete(title);
@@ -1652,12 +1789,18 @@
 
   // The hover inspector normally rests once something is selected; picking keeps it on
   // so the user can re-target the open sidebar with another click.
+  const PICK_TITLE = {
+    on: 'Picking: hover highlights, click selects another element. Click to go back to using the page',
+    off: 'Pick another element: hover highlights, click selects, the sidebar stays open',
+  };
   const setPicking = (on) => {
     state.picking = on;
     if (state.pickBtn) {
       state.pickBtn.classList.toggle('on', on);
       state.pickBtn.setAttribute('aria-pressed', String(on));
+      state.pickBtn.title = PICK_TITLE[on ? 'on' : 'off'];
     }
+    syncCursor();
     if (!on) {
       hi.style.display = 'none';
       hiLabel.style.display = 'none';
@@ -1677,9 +1820,7 @@
     const cs = getComputedStyle(target);
     const r = target.getBoundingClientRect();
     const hardcoded = Object.values(T).filter((x) => x.status === 'hardcoded').length;
-    const srcLine = src.file ? `${src.file}:${src.line}:${src.col}`
-      : src.via === 'debugStack' ? 'React 19 stack captured (agent symbolicates)'
-      : 'unresolved (agent will search the repo)';
+    const srcLine = src.file ? `${src.file}:${src.line}:${src.col}` : '';
 
     panelScroll.innerHTML = '';
     const title = mk('p-title');
@@ -1692,7 +1833,7 @@
     state.dockBtn = dockBtn;
     const pickBtn = mk('kbtn' + (state.picking ? ' on' : ''), 'button');
     pickBtn.innerHTML = PICK_ICON;
-    pickBtn.title = 'Inspect: highlight elements on hover and click to select another (sidebar stays open)';
+    pickBtn.title = PICK_TITLE[state.picking ? 'on' : 'off'];
     pickBtn.setAttribute('aria-pressed', String(state.picking));
     pickBtn.addEventListener('click', () => setPicking(!state.picking));
     state.pickBtn = pickBtn;
@@ -1705,15 +1846,26 @@
     const sub = mk('p-sub');
     sub.textContent = chain.slice(1).join(' ← ');
     sub.title = chain.join(' ← ');
-    const srcEl = mk('p-src mono');
-    srcEl.textContent = srcLine;
     const classes = mk('p-classes');
     classes.textContent = [...target.classList].join(' ');
     classes.title = classes.textContent;
-    panelScroll.append(title, sub, srcEl, classes);
+    panelScroll.append(title, sub);
+    if (srcLine) {
+      const srcEl = mk('p-src mono', 'button');
+      srcEl.textContent = srcLine;
+      srcEl.title = 'Source of this element. Click to copy';
+      srcEl.addEventListener('click', () => {
+        const done = () => showToast(`Copied ${srcLine}`, 1800);
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(srcLine).then(done, done);
+        else done();
+      });
+      panelScroll.append(srcEl);
+    }
+    panelScroll.append(classes);
     if (hardcoded) {
       const f = mk('flag');
-      f.textContent = `● ${hardcoded} hardcoded value${hardcoded > 1 ? 's' : ''} on this element`;
+      f.append(hcGlyph(), ` ${hardcoded} hardcoded value${hardcoded > 1 ? 's' : ''} on this element`);
+      f.title = 'Values written as literals, with no design token behind them';
       panelScroll.append(f);
     }
 
@@ -1740,6 +1892,23 @@
       (isFlex || isGrid) ? (() => { const g = spacingInput({ prop: 'gap' }); return row('Gap', g.node, { hardcoded: g.hardcoded, tip: g.tip, props: ['gap'] }); })() : null,
     ];
     const spacing = [boxModel(cs, r)];
+    // Figma-style toggle: edit all four sides of padding (or margin) together
+    const LINK_ICON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2.5H3.5A1 1 0 0 0 2.5 3.5V5M11 2.5h1.5a1 1 0 0 1 1 1V5M5 13.5H3.5a1 1 0 0 1-1-1V11M11 13.5h1.5a1 1 0 0 0 1-1V11"/><rect x="6" y="6" width="4" height="4" rx="1" fill="currentColor" stroke="none"/></svg>';
+    const linkBtn = () => {
+      const b = mk('sbtn' + (state.linkSides ? ' on' : ''), 'button');
+      b.innerHTML = LINK_ICON;
+      const t = () => (state.linkSides ? 'All sides linked: editing one side edits all four. Click to edit sides separately' : 'Sides are separate. Click to link all four sides');
+      b.title = t();
+      b.setAttribute('aria-pressed', String(state.linkSides));
+      b.addEventListener('click', () => {
+        state.linkSides = !state.linkSides;
+        sessionStorage.setItem('__cdm_link_sides', state.linkSides ? '1' : '0');
+        b.classList.toggle('on', state.linkSides);
+        b.setAttribute('aria-pressed', String(state.linkSides));
+        b.title = t();
+      });
+      return b;
+    };
     const typography = [
       tk('Font', { prop: 'font-family', key: 'fontFamily' }),
       tk('Size', { prop: 'font-size', key: 'fontSize' }),
@@ -1786,7 +1955,7 @@
 
     panelScroll.append(
       section('Layout', layout),
-      section('Spacing', spacing),
+      section('Spacing', spacing, [linkBtn()]),
       section('Typography', typography),
       section('Appearance', appearance),
     );
@@ -1924,6 +2093,7 @@
     state.trailLeaf = null;
     applyDock();
     syncPill();
+    syncCursor();
     ring.style.display = 'none';
     crumbs.style.display = 'none';
   };
@@ -1937,6 +2107,7 @@
     box(target, ring, 1);
     renderPanel(target);
     syncPill();
+    syncCursor();
   };
 
   // Keep the ring and hover box glued to their elements while the page scrolls or resizes.
@@ -1944,7 +2115,7 @@
   const reposition = () => {
     rafPending = false;
     if (state.promptOpen && state.selectedEl && state.selectedEl.isConnected) box(state.selectedEl, ring, 1);
-    if (state.active && (!state.promptOpen || state.picking) && state.hoverEl && state.hoverEl.isConnected) {
+    if (inspecting() && state.hoverEl && state.hoverEl.isConnected) {
       const r = box(state.hoverEl, hi);
       hiLabel.style.left = `${Math.max(4, r.left)}px`;
       hiLabel.style.top = `${Math.max(4, r.top - 24)}px`;
@@ -1968,7 +2139,7 @@
   /* ------------------------------------------------------------- events --- */
 
   const onMove = (e) => {
-    if (!state.active || (state.promptOpen && !state.picking)) return;
+    if (!inspecting()) return;
     const t = document.elementFromPoint(e.clientX, e.clientY);
     if (!t || isOurs(t) || t === document.documentElement || t === document.body) {
       hi.style.display = 'none';
@@ -1992,6 +2163,7 @@
     if (!state.active) return;
     if (isOurs(e.target)) return; // our own UI stays interactive
     if (e.type === 'click' && childMenu) closeChildMenu();
+    if (!inspecting()) return; // sidebar open, pick toggle off: the page gets its clicks back
     e.preventDefault();
     e.stopImmediatePropagation();
     if (e.type !== 'click') return;
@@ -2046,6 +2218,7 @@
       ensureMounted();
       state.active = true;
       syncPill();
+      syncCursor();
     },
     disable() {
       state.active = false;
@@ -2055,6 +2228,7 @@
       hi.style.display = 'none';
       hiLabel.style.display = 'none';
       syncPill();
+      syncCursor();
     },
     toggle() { state.active ? api.disable() : api.enable(); },
     isActive() { return state.active; },
