@@ -127,11 +127,17 @@
     .panel.dragging { transition: none; opacity: 0.92; }
     .p-title { cursor: grab; }
     .panel.dragging .p-title { cursor: grabbing; }
-    .panel-scroll { flex: 1; overflow: auto; padding: 12px 12px 10px; }
+    .panel-head { flex: none; padding: 10px 12px 0; user-select: none; }
+    .panel-scroll { flex: 1; overflow: auto; overscroll-behavior: contain; padding: 6px 12px 10px; }
+    .tray.empty { color: #6E6E6E; font-size: 10.5px; padding: 7px 12px; }
+    .count-btn { background: none; border: 0; padding: 0; color: inherit; font: inherit; font-weight: 600; cursor: pointer; white-space: nowrap; }
+    .count-btn:hover { color: #8FB2FF; }
+    .pill .badge { color: #8FB2FF; font-weight: 600; }
+    .pill .badge:hover { text-decoration: underline; cursor: pointer; }
     .p-title { font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 6px; min-width: 0; }
     .p-title .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .p-title .tag { color: #9B9B9B; font-weight: 400; font-size: 11px; }
-    .p-sub { color: #8FB2FF; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .p-sub { color: #9B9B9B; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .p-src { color: #9B9B9B; font-size: 10.5px; margin-top: 6px; word-break: break-all; background: none; border: 0; padding: 0; text-align: left; cursor: pointer; white-space: normal; }
     .p-src:hover { color: #E8E8E8; }
     .p-classes { color: #9B9B9B; font-size: 10.5px; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -148,6 +154,7 @@
     .seg button { flex: 1; min-width: 0; height: 22px; border: none; border-radius: 4px; background: transparent; color: #9B9B9B; display: flex; align-items: center; justify-content: center; padding: 0; }
     .seg button:hover { color: #E8E8E8; }
     .seg button.on { background: #3F3F3F; color: #E8E8E8; }
+    .seg button.txt { flex: 0 0 auto; width: auto; padding: 0 7px; font-size: 10.5px; }
     .seg svg { width: 14px; height: 14px; display: block; }
     .bm { position: relative; background: #303030; border: 1px solid #3E3E3E; border-radius: 8px; padding: 24px 40px; margin-top: 4px; }
     .bp { position: relative; background: #242424; border: 1px solid #383838; border-radius: 6px; padding: 24px 40px; }
@@ -180,6 +187,7 @@
     .ctl { height: 26px; width: 100%; min-width: 0; background: #2B2B2B; border: 1px solid transparent; border-radius: 6px; color: #E8E8E8; font: inherit; padding: 0 8px; outline: none; }
     .ctl:hover { border-color: #3A3A3A; }
     .ctl:focus { border-color: #0C8CE9; }
+    .ctl.bad { border-color: #E8963C; }
     .ctl[disabled] { color: #9B9B9B; }
     .ctl.sel { display: flex; align-items: center; justify-content: space-between; gap: 6px; text-align: left; cursor: pointer; }
     .ctl.sel .v { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
@@ -209,13 +217,16 @@
     .modal-bg { position: fixed; inset: 0; z-index: 3; pointer-events: auto; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; }
     .modal { width: 460px; max-width: calc(100vw - 32px); max-height: calc(100vh - 32px); display: flex; flex-direction: column; background: #1E1E1E; border: 1px solid #333; border-radius: 10px; box-shadow: 0 24px 64px rgba(0,0,0,0.6); overflow: hidden; }
     .modal-h { padding: 12px 14px 10px; font-weight: 600; font-size: 13px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-    .modal-h .muted { color: #9B9B9B; font-weight: 400; font-size: 11px; }
+    .modal-h .muted, .chg .muted { color: #9B9B9B; font-weight: 400; font-size: 11px; }
     .modal-list { overflow: auto; padding: 0 14px; max-height: 42vh; }
     .modal-list .chg { padding: 5px 0; }
     .modal-body { padding: 10px 14px 14px; display: flex; flex-direction: column; gap: 8px; border-top: 1px solid #2C2C2C; }
     .modal-foot { display: flex; align-items: center; gap: 8px; }
     .modal-foot .ctl.sel { width: auto; flex: 1; min-width: 0; }
     .modal { position: relative; }
+    .modal.confirm { width: 360px; }
+    .modal.confirm .modal-h { padding: 14px 14px 10px; font-size: 12.5px; }
+    .modal.confirm .modal-foot { padding: 0 14px 12px; justify-content: flex-end; }
     .modal-empty { color: #9B9B9B; padding: 8px 0 12px; }
     .tray-h .muted { color: #9B9B9B; font-weight: 400; font-size: 10.5px; }
     .chg { display: grid; grid-template-columns: 1fr auto; gap: 6px; align-items: center; padding: 3px 0; border-bottom: 1px solid #2C2C2C; min-width: 0; }
@@ -224,7 +235,8 @@
     .chg .what b { font-weight: 600; }
     .chg .who { color: #9B9B9B; font-size: 10px; }
     .chg .arrow { color: #9B9B9B; margin: 0 4px; }
-    .x { background: none; border: none; color: #9B9B9B; padding: 0 4px; font-size: 12px; }
+    .x { background: none; border: none; color: #9B9B9B; padding: 0 6px; min-width: 22px; height: 22px; font-size: 12px; border-radius: 4px; }
+    .x:hover { background: #3A3A3A; color: #E8E8E8; }
     .x:hover { color: #E8E8E8; }
     .tray-note { width: 100%; margin-top: 8px; }
     .tray-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 8px; }
@@ -235,7 +247,7 @@
     .pill { position: fixed; display: none; pointer-events: auto; top: 12px; right: 12px; align-items: center; gap: 10px; background: #1E1E1E; border: 1px solid #333; border-radius: 99px; padding: 5px 6px 5px 12px; box-shadow: 0 6px 24px rgba(0,0,0,0.35); font-weight: 600; }
     .pill .muted { color: #9B9B9B; font-weight: 400; }
     .hdr-btns { margin-left: auto; display: flex; align-items: center; gap: 4px; flex: none; }
-    .kbtn { flex: none; height: 20px; display: inline-flex; align-items: center; font: 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.02em; padding: 0 6px; border-radius: 4px; border: 1px solid #3A3A3A; border-bottom-width: 2px; background: #2B2B2B; color: #9B9B9B; }
+    .kbtn { flex: none; height: 22px; display: inline-flex; align-items: center; font: 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.02em; padding: 0 6px; border-radius: 4px; border: 1px solid #3A3A3A; border-bottom-width: 2px; background: #2B2B2B; color: #9B9B9B; }
     .kbtn:hover { color: #E8E8E8; border-color: #4A4A4A; }
     .kbtn svg { width: 12px; height: 12px; display: block; }
     .kbtn.on { color: #0C8CE9; border-color: #0C8CE9; background: rgba(12,140,233,0.15); }
@@ -244,7 +256,7 @@
     .crumbs { position: relative; cursor: grab; }
     .crumbs.dragging { cursor: grabbing; user-select: none; }
     .crumbs.dragging button { pointer-events: none; }
-    .crumbs button.kids { color: #9B9B9B; padding: 2px 6px; }
+    .crumbs button.kids { color: #9B9B9B; padding: 3px 7px; min-width: 22px; }
     .crumbs button.kids:hover, .crumbs button.kids.on { color: #E8E8E8; background: #2B2B2B; }
     .menu { position: absolute; right: 8px; z-index: 2; background: #2B2B2B; border: 1px solid #3A3A3A; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); padding: 4px; min-width: 170px; max-width: 250px; max-height: 45%; overflow: auto; }
     .menu .mh { color: #9B9B9B; font-size: 10px; padding: 3px 8px 5px; }
@@ -265,19 +277,33 @@
   const hiLabel = mk('hi-label ui');
   const ring = mk('ring');
   const panel = mk('panel ui');
+  const panelHead = mk('panel-head');
   const panelScroll = mk('panel-scroll');
   const tray = mk('tray');
   const crumbs = mk('crumbs ui');
-  panel.append(panelScroll, crumbs, tray);
+  panel.append(panelHead, panelScroll, crumbs, tray);
   const toast = mk('toast ui');
   const pill = mk('pill ui');
   pill.innerHTML = '<span>Design Mode</span><span class="muted">click an element</span>';
+  const pillBadge = mk('badge', 'button');
+  pillBadge.style.cssText = 'background:none;border:0;padding:0;font:inherit;display:none';
+  pillBadge.title = 'Unsent changes. Click to go back to them';
+  pillBadge.addEventListener('click', () => {
+    const first = [...state.pending.keys()].find((elx) => elx.isConnected && state.pending.get(elx).size);
+    if (first) { openPrompt(first); first.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+  });
+  pill.append(pillBadge);
   const pillEsc = mk('kbtn', 'button');
   pillEsc.textContent = 'esc';
   pillEsc.title = 'Exit Design Mode (Esc)';
-  pillEsc.addEventListener('click', () => api.disable());
+  pillEsc.addEventListener('click', () => requestDisable());
   pill.append(pillEsc);
-  const syncPill = () => { pill.style.display = state.active && !state.promptOpen ? 'flex' : 'none'; };
+  const syncPill = () => {
+    pill.style.display = state.active && !state.promptOpen ? 'flex' : 'none';
+    const n = pendingCount();
+    pillBadge.style.display = n ? '' : 'none';
+    pillBadge.textContent = n ? `${n} unsent` : '';
+  };
   shadow.append(hi, hiLabel, ring, panel, toast, pill);
 
   // Docking: the panel takes real space by pushing the page with an html margin
@@ -310,6 +336,7 @@
   panel.addEventListener('pointerdown', (e) => {
     if (e.button !== 0 || !e.target.closest || !e.target.closest('.p-title') || e.target.closest('button')) return;
     panelDrag = { x: e.clientX, moved: false, id: e.pointerId };
+    e.preventDefault(); // no text selection while dragging the handle
     try { panel.setPointerCapture(e.pointerId); } catch { /* fine */ }
   });
   panel.addEventListener('pointermove', (e) => {
@@ -328,6 +355,20 @@
   };
   panel.addEventListener('pointerup', endPanelDrag);
   panel.addEventListener('pointercancel', endPanelDrag);
+  panel.addEventListener('wheel', (e) => {
+    // let a scroller inside the panel take the wheel when it can; otherwise swallow it so the
+    // page (and the selected element) never scroll away under the sidebar
+    let n = e.target instanceof Element ? e.target : null;
+    while (n && n !== panel) {
+      const cs = getComputedStyle(n);
+      if (/(auto|scroll)/.test(cs.overflowY) && n.scrollHeight > n.clientHeight) {
+        const up = e.deltaY < 0;
+        if ((up && n.scrollTop > 0) || (!up && n.scrollTop + n.clientHeight < n.scrollHeight - 1)) return;
+      }
+      n = n.parentElement;
+    }
+    e.preventDefault();
+  }, { passive: false });
 
   // One light-DOM rule so the page itself shows the inspect cursor while picking; our UI keeps its own.
   const pageStyle = document.createElement('style');
@@ -498,7 +539,14 @@
     walkRules((rule, source, layer) => {
       if (scanned++ > MAX_RULE_SCAN || out.length >= MAX_RULES) return false;
       if (rule.selectorText) {
-        try { if (target.matches(rule.selectorText)) out.push({ rule, source, layer }); } catch { /* unsupported selector */ }
+        try {
+          if (target.matches(rule.selectorText)) {
+            // :hover/:active/:focus rules match while the pointer is still on the element;
+            // they are listed for the agent but never read as the element's resting value
+            const transient = /:(hover|active|focus|focus-visible|focus-within)\b/.test(rule.selectorText);
+            out.push({ rule, source, layer, transient });
+          }
+        } catch { /* unsupported selector */ }
       }
     });
     return out;
@@ -588,15 +636,25 @@
   const noBorder = (cs) => ['top', 'right', 'bottom', 'left'].every((sd) =>
     cs.getPropertyValue(`border-${sd}-style`) === 'none' || parseFloat(cs.getPropertyValue(`border-${sd}-width`)) === 0);
 
+  // prop -> the inline value the element had BEFORE the overlay previewed it (pending or sent)
+  const overriddenBy = (elx) => {
+    const m = new Map();
+    const pend = state.pending.get(elx);
+    if (pend) for (const c of pend.values()) { m.set(c.prop, c.from.inline); (c.companions || []).forEach((cp) => m.set(cp.prop, cp.before)); }
+    for (const entry of state.committed) if (entry.el === elx) for (const c of entry.changes) { if (!m.has(c.prop)) m.set(c.prop, c.from.inline); (c.companions || []).forEach((cp) => { if (!m.has(cp.prop)) m.set(cp.prop, cp.before); }); }
+    return m;
+  };
   const tokenTrace = (target, ruleObjs) => {
     const cs = getComputedStyle(target);
     const index = customProps();
     const out = {};
+    const ours = overriddenBy(target); // props the overlay itself set as previews
     const authoredIn = (name) => {
-      const inline = target.style.getPropertyValue(name).trim();
+      const inline = ours.has(name) ? String(ours.get(name) || '').trim() : target.style.getPropertyValue(name).trim();
       if (inline) return { v: inline, layer: 'inline', selector: null, from: 'inline style' };
       let best = null;
       for (const obj of ruleObjs) {
+        if (obj.transient) continue;
         const v = obj.rule.style && obj.rule.style.getPropertyValue(name).trim();
         if (!v) continue;
         if (!best || obj.layer !== 'base' || best.layer === 'base') best = { ...obj, v };
@@ -643,10 +701,12 @@
         let picked = names[0];
         let def = '';
         let resolved = '';
+        const KW = /^(initial|unset|revert|revert-layer|inherit)$/i;
         for (const name of names) {
+          if (NOISE.test(name) && names.length > 1) continue; // --tw-* fallbacks hide the real token
           const d = index[name] || '';
           const rv = cs.getPropertyValue(name).trim();
-          if (d || rv) { picked = name; def = d; resolved = rv; break; }
+          if ((d && !KW.test(d)) || (rv && !KW.test(rv))) { picked = name; def = d; resolved = rv; break; }
         }
         chain.push({ name: picked, value: def || resolved || '(unset)' });
         if (!def || !VAR_RE.test(def)) break;
@@ -674,7 +734,14 @@
     }
     return null;
   };
-  const primitiveOf = (t, fallback = '') => t ? (t.chain.length ? t.chain[t.chain.length - 1].value : (t.computed || t.authored)) : fallback;
+  // the concrete value behind a trace: the end of the var() chain when the property IS that
+  // var, the computed value when the var sits inside calc()/color-mix()/etc.
+  const bareVar = (v) => /^var\(\s*--[A-Za-z0-9_-]+\s*(,[^)]*)?\)$/.test(String(v || '').trim());
+  const primitiveOf = (t, fallback = '') => {
+    if (!t) return fallback;
+    if (t.chain.length && !bareVar(t.authored) && t.computed) return t.computed;
+    return t.chain.length ? t.chain[t.chain.length - 1].value : (t.computed || t.authored);
+  };
 
   const resolveVar = (name, elx) => {
     const idx = customProps();
@@ -731,6 +798,7 @@
     return null; // viewport/percent units: real, but not convertible here
   };
   const supports = (prop, v) => { try { return CSS.supports(prop, v); } catch { return false; } };
+  const LENGTH_PROPS = new Set(['font-size', 'letter-spacing', 'border-radius', 'gap', 'padding', 'margin', 'width', 'height', 'line-height']);
   // value type: color | length | weight | lineHeight | tracking | shadow | fontFamily | number | other
   const classifyValue = (raw) => {
     const v = String(raw || '').trim();
@@ -887,24 +955,24 @@
       });
       if (res.ok) {
         removeFromQueue(payload.seq);
-        showToast(`#${payload.seq} sent to Claude`);
+        showToast('Sent to Claude');
         return true;
       }
       if (res.status === 403) {
         payload.failed403 = true;
         persist();
-        showToast(`#${payload.seq} not sent: dev server restarted. Reload the page to reconnect.`, 8000);
+        showToast('Not sent: the dev server restarted. Reload the page to reconnect.', 8000);
         return false;
       }
       if (payload.attempts >= 3) {
         payload.gaveUp = true;
         persist();
-        showToast(`#${payload.seq} rejected by the dev server (${res.status}); check its log.`, 8000);
+        showToast(`Not sent: the dev server rejected it (${res.status}). Check its log.`, 8000);
         return false;
       }
-      showToast(`#${payload.seq} send failed (${res.status}), retrying…`, 6000);
+      showToast(`Send failed (${res.status}), retrying…`, 6000);
     } catch {
-      showToast(`#${payload.seq} dev server unreachable, retrying…`, 6000);
+      showToast('Dev server unreachable, retrying…', 6000);
     }
     persist();
     scheduleRetry();
@@ -916,11 +984,12 @@
     persist();
     // Tiny signal only: console truncates silently above ~4KB, so never the payload.
     console.log(`[design-mode] ${payload.kind} #${payload.seq} ready${payload.source ? ` (source via ${payload.source.via})` : ''}`);
-    if (cfg.endpoint) { await post(payload); return; }
+    if (cfg.endpoint) return (await post(payload)) ? 'sent' : 'failed';
     if (cfg.wakeUrl) {
       try { fetch(`${cfg.wakeUrl}?token=${encodeURIComponent(cfg.token || '')}`, { mode: 'no-cors' }); } catch { /* not armed */ }
     }
-    showToast(`#${payload.seq} queued for Claude`);
+    showToast('Queued for Claude');
+    return 'queued';
   };
 
   /* ------------------------------------------------------ live previews --- */
@@ -931,7 +1000,14 @@
   };
   const pendingCount = () => [...state.pending.values()].reduce((n, m) => n + m.size, 0);
 
-  const labelFor = (side) => side.label || (side.token ? side.token.replace(/^--/, '') : (side.primitive || side.css || ''));
+  // the CSSOM serialises literal colours as rgb(); show hex, which is what people write
+  const rgbToHex = (v) => {
+    const m = /^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/.exec(String(v || '').trim());
+    if (!m) return v;
+    const h = m.slice(1, 4).map((x) => Number(x).toString(16).padStart(2, '0')).join('');
+    return '#' + (/^(.)\1(.)\2(.)\3$/.test(h) ? h[0] + h[2] + h[4] : h);
+  };
+  const labelFor = (side) => side.label || (side.token ? side.token.replace(/^--/, '') : rgbToHex(side.primitive || side.css || ''));
 
   const SPACING_RE = /calc\(\s*var\(--spacing\)\s*\*\s*(-?[\d.]+)\s*\)/;
   const fromLabel = (t) => {
@@ -966,6 +1042,20 @@
       companions.push({ prop: 'line-height', before, css: `var(${meta.token}--line-height)` });
       elx.style.setProperty('line-height', `var(${meta.token}--line-height)`);
     }
+    // Back where it started (same authored value, or nothing authored and the same result):
+    // lift the override instead of recording a no-op change
+    const backToStart = (from.authored && css === from.authored)
+      || (!from.authored && !meta.token && !from.inline && getComputedStyle(elx).getPropertyValue(prop).trim() === String(from.primitive || '').trim());
+    if (backToStart) {
+      companions.forEach((c) => c.before ? elx.style.setProperty(c.prop, c.before) : elx.style.removeProperty(c.prop));
+      from.inline ? elx.style.setProperty(prop, from.inline) : elx.style.removeProperty(prop);
+      map.delete(prop);
+      if (!map.size) state.pending.delete(elx);
+      renderTray();
+      refreshModMarks();
+      onScrollOrResize();
+      return;
+    }
     map.set(prop, {
       prop,
       from,
@@ -973,12 +1063,21 @@
       companions,
     });
     renderTray();
-    refreshModMarks();
+    if (companions.length) renderPanel(elx, true); // a companion (line-height with a text token) must show as changed too
+    else refreshModMarks();
+    onScrollOrResize();
+  };
+
+  // re-applies a recorded change's preview onto an element (used when the page re-renders a twin)
+  const reapplyOverride = (elx, c) => {
+    elx.style.setProperty(c.prop, c.to.css);
+    (c.companions || []).forEach((cp) => elx.style.setProperty(cp.prop, cp.css));
   };
 
   const liftOverride = (elx, c) => {
     c.from.inline ? elx.style.setProperty(c.prop, c.from.inline) : elx.style.removeProperty(c.prop);
     (c.companions || []).forEach((cp) => cp.before ? elx.style.setProperty(cp.prop, cp.before) : elx.style.removeProperty(cp.prop));
+    onScrollOrResize();
   };
 
   const revertChange = (elx, prop) => {
@@ -998,8 +1097,8 @@
     if (state.selectedEl) renderPanel(state.selectedEl, true);
   };
 
+  // lifts only the previews that were already sent; unsent work stays
   const clearPreviews = () => {
-    discardAll();
     for (const { el: elx, changes } of state.committed) for (const c of changes) liftOverride(elx, c);
     state.committed = [];
     renderTray();
@@ -1008,8 +1107,10 @@
 
   const commitChanges = (note, scope) => {
     const targets = [];
+    const sentEls = [];
     for (const [elx, map] of state.pending) {
       if (!map.size || !elx.isConnected) continue;
+      sentEls.push(elx);
       targets.push({
         ...elementContext(elx),
         edits: [...map.values()].map((c) => ({
@@ -1018,9 +1119,11 @@
           to: { css: c.to.css, token: c.to.token, label: c.to.label, primitive: c.to.primitive, hardcoded: c.to.hardcoded },
         })),
       });
-      state.committed.push({ el: elx, changes: [...map.values()] });
     }
     if (!targets.length) return;
+    const entry = { status: 'sending' };
+    // kept per element for the preview lift; the shared entry carries delivery status
+    state.committed.push(...sentEls.map((elx) => ({ el: elx, changes: [...state.pending.get(elx).values()], entry })));
     const summary = targets.map((tg) => `${tg.componentChain[0] || tg.tag}: ${tg.edits.map((e) => `${e.prop} ${labelFor(e.from)} → ${labelFor(e.to)}`).join(', ')}`).join('; ');
     state.seq += 1;
     const payload = {
@@ -1035,9 +1138,10 @@
       viewport: viewportInfo(),
       targets,
     };
-    state.pending = new Map();
+    for (const elx of sentEls) state.pending.delete(elx); // detached elements keep their unsent edits listed
     renderTray();
-    deliver(payload);
+    refreshModMarks();
+    deliver(payload).then((r) => { entry.status = r; renderTray(); });
   };
 
   /* ------------------------------------------------------------ tray UI --- */
@@ -1052,12 +1156,20 @@
 
   let trayNoteValue = '';
   let trayScopeValue = 'auto';
+  const SCOPES = [
+    { value: 'auto', label: 'Auto', title: 'Let Claude decide from the request' },
+    { value: 'instance', label: 'This element', title: 'Change only this element (its call site), not the shared component' },
+    { value: 'component', label: 'All instances', title: 'Change the shared component so every instance follows' },
+    { value: 'token', label: 'Token', title: 'Change the design token itself, everywhere it is used' },
+  ];
 
   const changeRow = (elx, c, onRevert) => {
     const row = mk('chg');
     const what = mk('what');
-    what.innerHTML = `<span class="who">${esc(elLabel(elx))}</span> <b>${esc(c.prop)}</b> ${esc(labelFor(c.from))}<span class="arrow">→</span>${esc(labelFor(c.to))}${c.to.hardcoded ? ' ' + HC_HTML('hardcoded value') : ''}`;
+    const gone = !elx.isConnected;
+    what.innerHTML = `<span class="who">${esc(elLabel(elx))}</span> <b>${esc(c.prop)}</b> ${esc(labelFor(c.from))}<span class="arrow">→</span>${esc(labelFor(c.to))}${c.to.hardcoded ? ' ' + HC_HTML('hardcoded value') : ''}${gone ? ' <span class="muted">(element no longer on the page, will not be sent)</span>' : ''}`;
     what.title = `${c.from.primitive} → ${c.to.primitive}${c.to.hardcoded ? ' (hardcoded)' : ''}`;
+    if (gone) row.style.opacity = '0.6';
     const x = mk('x', 'button');
     x.textContent = '✕';
     x.title = 'Revert this change';
@@ -1070,34 +1182,70 @@
   const renderTray = () => {
     const n = pendingCount();
     const committed = state.committed.reduce((k, c) => k + c.changes.length, 0);
-    if (!n && !committed) { tray.style.display = 'none'; tray.innerHTML = ''; return; }
-    tray.style.display = 'block';
+    const wasEmpty = tray.classList.contains('empty');
     tray.innerHTML = '';
+    tray.style.display = 'block';
+    tray.classList.toggle('empty', !n && !committed);
+    if (!n && !committed) { tray.textContent = 'No changes yet'; syncPill(); return; }
     if (n) {
       const hard = [...state.pending.values()].reduce((k, m) => k + [...m.values()].filter((c) => c.to.hardcoded).length, 0);
+      const stale = [...state.pending.keys()].filter((elx) => !elx.isConnected).length;
       const h = mk('tray-h');
-      const count = mk('count', 'span');
+      const count = mk('count-btn count', 'button');
       count.innerHTML = `${n} change${n > 1 ? 's' : ''}${hard ? ' ' + HC_HTML(`${hard} hardcoded value${hard > 1 ? 's' : ''}`) : ''}`;
-      count.title = hard ? `${hard} hardcoded value${hard > 1 ? 's' : ''}` : 'previewing on the page';
+      count.title = 'Review the changes' + (hard ? ` · ${hard} hardcoded value${hard > 1 ? 's' : ''}` : '') + (stale ? ` · ${stale} element${stale > 1 ? 's' : ''} no longer on the page` : '');
+      count.addEventListener('click', openCommitModal);
       const discard = mk('btn sm ghost', 'button');
       discard.textContent = 'Discard';
-      discard.addEventListener('click', discardAll);
+      discard.title = 'Drop all unsent changes and their previews';
+      discard.addEventListener('click', () => { if (n > 1) confirmBox({ text: `Discard ${n} unsent changes?`, ok: 'Discard', onOk: discardAll }); else discardAll(); });
       h.append(count, discard);
       const commit = mk('btn primary full', 'button');
       commit.textContent = 'Ask Claude to commit';
+      commit.title = 'Review, add a note, and send the changes to Claude';
       commit.addEventListener('click', openCommitModal);
       tray.append(h, commit);
     }
     if (committed) {
+      const statuses = new Set(state.committed.map((c) => (c.entry ? c.entry.status : 'sent')));
+      const word = statuses.has('sending') ? 'Sending to Claude' : statuses.has('failed') ? 'Not sent (see message)' : statuses.has('queued') ? 'Queued for Claude' : 'Sent to Claude';
       const st = mk('tray-status');
-      st.innerHTML = `<span title="Previews stay on the page until Claude applies the edits">${committed} sent · previewing</span>`;
+      st.innerHTML = `<span title="Previews stay on the page until Claude applies the edits and the page reloads">${word} · ${committed} previewing</span>`;
       const clear = document.createElement('button');
       clear.textContent = 'Clear previews';
+      clear.title = 'Lift the sent previews from the page (unsent changes stay)';
       clear.addEventListener('click', clearPreviews);
       st.append(clear);
       if (n) st.style.marginTop = '8px';
       tray.append(st);
     }
+    syncPill();
+    // the tray just grew over the bottom of the panel: keep the field being edited in view
+    if (wasEmpty && shadow.activeElement && panelScroll.contains(shadow.activeElement)) {
+      const a = shadow.activeElement;
+      requestAnimationFrame(() => { if (a.isConnected) { a.scrollIntoView({ block: 'nearest' }); if (dd && dd.anchor === a) dd.place(); } });
+    }
+  };
+
+  // A small yes/no box on top of the sidebar, for the two destructive moments
+  let confirmEl = null;
+  const closeConfirm = () => { if (confirmEl) { confirmEl.remove(); confirmEl = null; } };
+  const confirmBox = ({ text, ok, onOk, cancel = 'Keep editing' }) => {
+    closeConfirm();
+    const bg = mk('modal-bg ui');
+    const box_ = mk('modal confirm');
+    const h = mk('modal-h'); h.textContent = text;
+    const foot = mk('modal-foot');
+    const no = mk('btn ghost', 'button'); no.textContent = cancel; no.addEventListener('click', closeConfirm);
+    const yes = mk('btn primary', 'button'); yes.textContent = ok; yes.addEventListener('click', () => { closeConfirm(); onOk(); });
+    foot.append(no, yes);
+    box_.append(h, foot);
+    bg.addEventListener('click', (e) => { if (e.target === bg) closeConfirm(); });
+    bg.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Escape') { e.preventDefault(); closeConfirm(); } if (e.key === 'Enter') { e.preventDefault(); yes.click(); } });
+    bg.append(box_);
+    shadow.append(bg);
+    confirmEl = bg;
+    setTimeout(() => yes.focus(), 0);
   };
 
   let modal = null;
@@ -1137,7 +1285,7 @@
       });
       const foot = mk('modal-foot');
       const scope = selectInput({
-        options: [{ value: 'auto', label: 'Scope: auto' }, { value: 'instance', label: 'This instance' }, { value: 'component', label: 'All instances' }, { value: 'token', label: 'The token' }],
+        options: SCOPES.map((sc) => ({ value: sc.value, label: `Scope: ${sc.label}`, title: sc.title })),
         current: trayScopeValue,
         onPick: (v) => { trayScopeValue = v; },
         container: box_,
@@ -1172,11 +1320,11 @@
   // popups render outside the page and drift in scaled/embedded viewports).
   let dd = null;
   const closeDropdown = () => { if (dd) { dd.el.remove(); dd = null; } };
-  const openDropdown = ({ anchor, items, current, onPick, container = panel }) => {
+  const openDropdown = ({ anchor, items, current, onPick, container = panel, emptyText = 'No match. Enter keeps what you typed' }) => {
     closeDropdown();
     const el = mk('dd ui');
     el.addEventListener('mousedown', (e) => e.preventDefault()); // keep the field focused
-    const d = { el, anchor, items, shown: items, hl: -1, filter: '' };
+    const d = { el, anchor, items, shown: items, hl: -1, filter: '', navigated: false };
     const place = () => {
       const c = container.getBoundingClientRect();
       const a = anchor.getBoundingClientRect();
@@ -1197,7 +1345,7 @@
     };
     const render = () => {
       el.innerHTML = '';
-      if (!d.shown.length) { const e = mk('empty'); e.textContent = 'No matching token: Enter keeps the typed value (hardcoded)'; el.append(e); return; }
+      if (!d.shown.length) { const e = mk('empty'); e.textContent = emptyText; el.append(e); return; }
       d.shown.forEach((it, i) => {
         const b = mk('it' + (i === d.hl ? ' hl' : '') + (it.value === current ? ' cur' : ''), 'button');
         b.type = 'button';
@@ -1206,7 +1354,7 @@
         if (it.primitive) { const pv = mk('pv', 'span'); pv.textContent = it.primitive; pv.title = it.primitive; b.append(pv); }
         b.title = it.primitive ? `${it.label} · ${it.primitive}` : it.label;
         b.addEventListener('click', () => onPick(it));
-        b.addEventListener('mousemove', () => { if (d.hl !== i) { d.hl = i; [...el.children].forEach((c, k) => c.classList.toggle('hl', k === i)); } });
+        b.addEventListener('mousemove', () => { if (d.hl !== i) { d.hl = i; d.navigated = true; [...el.children].forEach((c, k) => c.classList.toggle('hl', k === i)); } });
         el.append(b);
       });
     };
@@ -1217,16 +1365,24 @@
       if (top < el.scrollTop) el.scrollTop = top - 4;
       else if (bottom > el.scrollTop + el.clientHeight) el.scrollTop = bottom - el.clientHeight + 4;
     };
+    // Highlight means "Enter picks this". With no filter it sits on the current value; while
+    // typing it only lands on an exact name match or the single remaining match, so Enter on
+    // free text applies what was typed instead of a lookalike token. Arrows/hover move it.
     d.setFilter = (f) => {
       d.filter = f.toLowerCase();
+      d.navigated = false;
       d.shown = d.filter ? items.filter((it) => it.label.toLowerCase().includes(d.filter) || (it.primitive || '').toLowerCase().includes(d.filter)) : items;
-      d.hl = d.shown.length ? 0 : -1;
       if (!d.filter) d.hl = Math.max(0, d.shown.findIndex((it) => it.value === current));
+      else {
+        const exact = d.shown.findIndex((it) => it.label.toLowerCase() === d.filter || String(it.value).toLowerCase() === d.filter);
+        d.hl = exact >= 0 ? exact : d.shown.length === 1 ? 0 : -1;
+      }
       render(); place(); reveal();
     };
     d.move = (delta) => {
       if (!d.shown.length) return;
-      d.hl = (d.hl + delta + d.shown.length) % d.shown.length;
+      d.navigated = true;
+      d.hl = d.hl < 0 ? (delta > 0 ? 0 : d.shown.length - 1) : (d.hl + delta + d.shown.length) % d.shown.length;
       [...el.children].forEach((c, k) => c.classList.toggle('hl', k === d.hl));
       reveal();
     };
@@ -1239,6 +1395,12 @@
   };
   // the field moves when the panel scrolls (focus can scroll it into view): follow it,
   // and only let go once the field has left the visible area
+  shadow.addEventListener('focusout', (e) => {
+    if (!dd || e.target !== dd.anchor) return;
+    const to = e.relatedTarget;
+    if (to && dd.el.contains(to)) return;
+    setTimeout(() => { if (dd && dd.anchor === e.target && shadow.activeElement !== e.target) closeDropdown(); }, 0);
+  });
   panelScroll.addEventListener('scroll', () => {
     if (!dd || !panel.contains(dd.el)) return;
     const ar = dd.anchor.getBoundingClientRect();
@@ -1247,7 +1409,13 @@
     else dd.place();
   }, { passive: true });
 
-  const hasPending = (prop) => { const m = state.selectedEl && state.pending.get(state.selectedEl); return !!(m && m.has(prop)); };
+  const hasPending = (prop) => {
+    const m = state.selectedEl && state.pending.get(state.selectedEl);
+    if (!m) return false;
+    if (m.has(prop)) return true;
+    for (const c of m.values()) if ((c.companions || []).some((cp) => cp.prop === prop)) return true;
+    return false;
+  };
   // the changed dot beside a label: present exactly when the row has a pending change
   const markDot = (l) => {
     const mod = l.classList.contains('mod');
@@ -1268,7 +1436,10 @@
     const map = elx && state.pending.get(elx);
     if (!map) return;
     let n = 0;
-    for (const prop of props) { if (map.has(prop)) { liftOverride(elx, map.get(prop)); map.delete(prop); n++; } }
+    for (const prop of props) {
+      if (map.has(prop)) { liftOverride(elx, map.get(prop)); map.delete(prop); n++; continue; }
+      for (const [owner, c] of map) if ((c.companions || []).some((cp) => cp.prop === prop)) { liftOverride(elx, c); map.delete(owner); n++; break; }
+    }
     if (!n) return;
     if (!map.size) state.pending.delete(elx);
     renderTray();
@@ -1331,13 +1502,16 @@
     seg.setAttribute('data-cdm-field', '');
     let cur = (map && map[current]) || current;
     const paint = () => seg.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.v === cur));
-    for (const o of options) {
-      const b = mk('', 'button');
+    const opts = options.slice();
+    if (!opts.some((o) => o.value === cur)) opts.push({ value: cur, label: cur, text: true }); // e.g. display: inline, table, contents
+    for (const o of opts) {
+      const b = mk(o.text ? 'txt' : '', 'button');
       b.type = 'button';
       b.dataset.v = o.value;
-      b.innerHTML = svg(o.icon);
+      if (o.text) b.textContent = o.label; else b.innerHTML = svg(o.icon);
       b.title = `${prop}: ${o.value}${o.title ? ' · ' + o.title : ''}`;
       b.addEventListener('click', () => {
+        if (o.value === cur) return;
         cur = o.value;
         paint();
         applyPreview(prop, o.value, { label: o.value, primitive: o.value, system });
@@ -1372,10 +1546,11 @@
     const end = (e) => {
       if (!st || (e && e.pointerId !== st.id)) return;
       const { moved } = st;
+      const st_last = st.last;
       st = null;
       inp.classList.remove('scrubbing');
       panel.classList.remove('scrubbing');
-      if (moved) { if (onEnd) onEnd(); } else if (onClick) onClick();
+      if (moved && st_last !== 0) { if (onEnd) onEnd(); } else if (onClick) onClick();
     };
     inp.addEventListener('pointerup', end);
     inp.addEventListener('pointercancel', end);
@@ -1395,12 +1570,24 @@
     if (mode === 'tokens') return spacingTokens().map((t) => ({ value: t.px, label: t.name.replace(/^--/, ''), primitive: `${Math.round(t.px)}px` }));
     return PX_SCALE.map((v) => ({ value: v, label: `${v}px` }));
   };
-  const openNumericOptions = (inp, items, currentValue, onPick) =>
-    openDropdown({ anchor: inp, items, current: currentValue, onPick: (it) => { onPick(it.value); closeDropdown(); inp.blur(); } });
+  const openNumericOptions = (inp, items, currentValue, onPick, emptyText) =>
+    openDropdown({ anchor: inp, items, current: currentValue, emptyText, onPick: (it) => { onPick(it.value); closeDropdown(); inp.blur(); } });
+  // what Enter does with a px value that matches no preset, in the app's own terms
+  const spacingEmptyText = () => {
+    const mode = spacingMode();
+    if (mode === 'base') return 'No preset. Enter keeps the value, snapped to the spacing scale';
+    if (mode === 'tokens') return 'No spacing token at that size. Enter keeps the px value (hardcoded)';
+    return 'No preset. Enter keeps the px value';
+  };
 
   // px-valued field that previews in the app's spacing vocabulary
   const toUnits = (px) => { const b = spacingBasePx(); return b ? Math.round((px / b) * 4) / 4 : Math.round(px); };
   const spacingTokenAt = (px) => spacingTokens().find((t) => Math.abs(t.px - px) < 0.5) || null;
+  // the next spacing token above (dir>0) or below (dir<0) a px value; null when off the ends
+  const spacingTokenNext = (px, dir) => {
+    const scale = [...new Set(spacingTokens().map((t) => Math.round(t.px)))].sort((a, b) => a - b);
+    return dir > 0 ? scale.find((v) => v > px + 0.5) ?? null : [...scale].reverse().find((v) => v < px - 0.5) ?? null;
+  };
   // the px the preview will actually produce for a requested px
   const normPx = (px) => { const b = spacingBasePx(); return b ? Math.round(toUnits(px) * b) : Math.round(px); };
   // short hint beside a px value: "×4" with a base unit, "space-4" when a token matches, nothing otherwise
@@ -1444,8 +1631,8 @@
       const t = sideTrace(prop);
       const hint = spacingHint(px);
       inp.title = `${prop}: ${px}px${hint ? ' = ' + hint : ''}${t ? ' · ' + tipFor(t) : ''}`;
-      const reset = () => { inp.value = String(px); };
       const startPx = () => Math.round(parseFloat(getComputedStyle(state.selectedEl).getPropertyValue(prop)) || 0);
+      const reset = () => { inp.value = String(startPx()); }; // the value the page has right now
       const setPx = (v) => {
         const vv = allowNegative ? v : Math.max(0, v);
         const fam = prop.split('-')[0];
@@ -1460,22 +1647,20 @@
       scrub(inp, {
         step: 1,
         onDelta: (steps) => setPx(scrubBase + steps),
-        onClick: () => { inp.focus(); inp.select(); openNumericOptions(inp, spacingItems(), Math.round(parseFloat(inp.value) || 0), (v) => setPx(v)); },
+        onClick: () => { inp.focus(); inp.select(); openNumericOptions(inp, spacingItems(), Math.round(parseFloat(inp.value) || 0), (v) => setPx(v), spacingEmptyText()); },
       });
       inp.addEventListener('pointerdown', () => { scrubBase = startPx(); }, true);
-      inp.addEventListener('dblclick', (e) => { e.preventDefault(); revertProps([prop]); });
+      dblclickReset(inp, prop);
       inp.addEventListener('input', () => { if (dd && dd.anchor === inp) dd.setFilter(inp.value); });
-      inp.addEventListener('keydown', (e) => {
-        e.stopPropagation();
-        if (e.key === 'Enter') { e.preventDefault(); inp.blur(); }
-        if (e.key === 'Escape') { e.preventDefault(); reset(); inp.blur(); }
-        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-          e.preventDefault();
-          const step = e.shiftKey ? 8 : 4;
-          const v = (parseFloat(inp.value) || 0) + (e.key === 'ArrowUp' ? step : -step);
-          inp.value = String(allowNegative ? v : Math.max(0, v));
-          inp.dispatchEvent(new Event('change'));
-        }
+      numericKeys(inp, {
+        reset,
+        step: 1,
+        bigStep: spacingBasePx() || 10,
+        nudge: (by, big) => {
+          const cur = parseFloat(inp.value) || 0;
+          if (big && spacingMode() === 'tokens') { const nx = spacingTokenNext(cur, by); if (nx !== null) setPx(nx); return; } // Shift+arrow walks the token scale
+          setPx(cur + by);
+        },
       });
       inp.addEventListener('change', () => {
         const parsed = parseFloat(inp.value);
@@ -1506,16 +1691,59 @@
     return bm;
   };
 
-  const fieldKeys = (inp, reset) => {
+  // One keyboard contract for every numeric field (box model, Gap, Opacity):
+  //   Enter commits and closes the list · Escape restores the live value and closes · Tab closes
+  //   Up/Down nudge by `step` (Shift: `bigStep`) with an instant preview; while the list is
+  //   open and the user has arrowed into it, Up/Down move the highlight and Enter picks.
+  const numericKeys = (inp, { reset, nudge, step = 1, bigStep = 10 }) => {
     inp.setAttribute('data-cdm-field', '');
+    const mine = () => dd && dd.anchor === inp;
     inp.addEventListener('keydown', (e) => {
       e.stopPropagation();
-      if (e.key === 'Enter') { e.preventDefault(); inp.blur(); }
-      if (e.key === 'Escape') { e.preventDefault(); reset(); inp.blur(); }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (mine() && dd.navigated && dd.hl >= 0 && dd.pickHighlighted()) return;
+        closeDropdown();
+        inp.dispatchEvent(new Event('change'));
+        inp.blur();
+        return;
+      }
+      if (e.key === 'Escape') { e.preventDefault(); reset(); closeDropdown(); inp.blur(); return; }
+      if (e.key === 'Tab') { closeDropdown(); return; }
+      if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (mine() && dd.navigated) { dd.move(e.key === 'ArrowDown' ? 1 : -1); return; }
+        if (mine() && dd.filter && dd.shown.length) { dd.move(e.key === 'ArrowDown' ? 1 : -1); return; }
+        const by = e.shiftKey ? bigStep : step;
+        nudge(e.key === 'ArrowUp' ? by : -by, e.shiftKey);
+      }
     });
   };
+  // Double-click resets a value field only when the pair of clicks started on an unfocused
+  // field with a pending change; a field being edited keeps native double-click (select word).
+  const dblclickReset = (inp, prop) => {
+    let lastDown = 0;
+    let pairFocused = false;
+    inp.addEventListener('pointerdown', () => {
+      const now = Date.now();
+      if (now - lastDown > 450) pairFocused = shadow.activeElement === inp;
+      lastDown = now;
+    }, true);
+    inp.addEventListener('dblclick', (e) => {
+      if (pairFocused || !hasPending(prop)) return;
+      e.preventDefault();
+      closeDropdown();
+      revertProps([prop]);
+    });
+  };
+  const fieldKeys = (inp, reset) => numericKeys(inp, { reset, nudge: () => {} });
 
-  const tipFor = (t) => t ? `${t.authored}${t.from ? ' · ' + t.from : ''}${t.chain.length ? ' · ' + t.chain.map((c) => c.name).join(' → ') + ' → ' + primitiveOf(t) : ''}` : 'not authored (inherited or default)';
+  const tipFor = (t) => {
+    if (!t) return 'Not set on this element (inherited or default)';
+    const chain = t.chain.length ? t.chain.map((c) => c.name.replace(/^--/, '')).join(' → ') + ' → ' + primitiveOf(t) : '';
+    const authored = t.chain.length && bareVar(t.authored) ? '' : t.authored; // a bare var() is already in the chain
+    return [authored, t.from, chain].filter(Boolean).join(' · ');
+  };
 
   const SCALE_KEYS = new Set(['fontSize', 'fontWeight', 'lineHeight', 'tracking', 'radius', 'shadow']);
 
@@ -1529,13 +1757,18 @@
     const cs = getComputedStyle(state.selectedEl);
     let current = semanticName(t) || (t ? t.authored : '') || cs.getPropertyValue(prop).trim();
     if (current === 'rgba(0, 0, 0, 0)') current = 'transparent';
+    if (swatch) current = rgbToHex(current);
     const borderless = prop === 'border-color' && noBorder(cs);
     if (borderless) current = 'none';
     const wrap = mk(swatch ? 'swatched' : '');
     let sw = null;
     if (swatch) { sw = mk('sw', 'span'); sw.style.background = borderless ? 'transparent' : cs.getPropertyValue(prop); wrap.append(sw); }
     // the primitive under a colour field is shown only when it says more than the field itself
-    const norm = (v) => String(v || '').toLowerCase().replace(/\s+/g, '');
+    const norm = (v) => {
+      const x = rgbToHex(String(v || '').toLowerCase().replace(/\s+/g, '').replace(/^rgba\(0,0,0,0\)$/, 'transparent'));
+      const m = /^#(.)\1(.)\2(.)\3$/.exec(x);
+      return m ? `#${m[1]}${m[2]}${m[3]}` : x;
+    };
     const setPrim = (value) => {
       const el = wrap.querySelector('.prim');
       if (!el) return;
@@ -1555,8 +1788,8 @@
       ...names.map((n) => { const prim = resolveVar(n, state.selectedEl); return { value: n.replace(/^--/, ''), label: n.replace(/^--/, ''), primitive: prim, swatch: swatch ? prim : null }; }),
     ];
     // scales list (and scrub) by value, not by name: xs, sm, base, lg, xl, 2xl...
+    const num = (v) => { const m = /^(-?[\d.]+)(rem|em|px|%)?$/.exec(String(v || '').trim()); if (!m) return null; const n = parseFloat(m[1]); return m[2] === 'rem' || m[2] === 'em' ? n * rootFontPx() : n; };
     if (SCALE_KEYS.has(key)) {
-      const num = (v) => { const m = /^(-?[\d.]+)(rem|em|px|%)?$/.exec(String(v || '').trim()); if (!m) return null; const n = parseFloat(m[1]); return m[2] === 'rem' || m[2] === 'em' ? n * 16 : n; };
       if (items.filter((it) => num(it.primitive) !== null).length >= 2) items.sort((a, b) => (num(a.primitive) ?? Infinity) - (num(b.primitive) ?? Infinity));
     }
     const commit = (rawIn) => {
@@ -1572,22 +1805,36 @@
       } else if (special && special[raw]) {
         applyPreview(prop, special[raw].css, { label: raw, primitive: special[raw].css, system: true });
       } else {
-        applyPreview(prop, raw, { primitive: raw });
-        if (sw) sw.style.background = raw;
-        setPrim(raw);
+        // a literal: bare numbers get px where a length is expected; anything the browser
+        // would reject is not recorded as a change
+        const lit = /^-?\d+(\.\d+)?$/.test(raw) && LENGTH_PROPS.has(prop) ? `${raw}px` : raw;
+        if (!supports(prop, lit)) { inp.value = current; inp.classList.add('bad'); setTimeout(() => inp.classList.remove('bad'), 600); return; }
+        applyPreview(prop, lit, { primitive: lit });
+        if (sw) sw.style.background = lit;
+        setPrim(lit);
+        inp.value = lit;
       }
       current = inp.value;
     };
     const mine = () => dd && dd.anchor === inp;
-    const open = () => openDropdown({ anchor: inp, items, current, onPick: (it) => { inp.value = it.value; commit(it.value); closeDropdown(); inp.blur(); } });
+    const emptyText = `No matching token. Enter keeps what you typed${key === 'color' || key === 'fontFamily' || key === 'shadow' ? ' as a literal (hardcoded)' : ' (hardcoded)'}`;
+    const open = () => openDropdown({ anchor: inp, items, current, emptyText, onPick: (it) => { inp.value = it.value; commit(it.value); closeDropdown(); inp.blur(); } });
     inp.addEventListener('focus', () => { if (!mine()) open(); });
     inp.addEventListener('click', () => { if (!mine()) open(); });
-    inp.addEventListener('dblclick', (e) => { e.preventDefault(); closeDropdown(); revertProps([prop]); });
+    dblclickReset(inp, prop);
     // ordered scales scrub: drag steps through the family (text-sm -> text-base -> text-lg)
     if (SCALE_KEYS.has(key) && items.length > 1) {
       inp.classList.add('scale');
       let base = 0;
-      inp.addEventListener('pointerdown', () => { base = Math.max(0, items.findIndex((it) => it.value === current)); }, true);
+      inp.addEventListener('pointerdown', () => {
+        let i = items.findIndex((it) => it.value === current);
+        if (i < 0) { // literal value: seed from the nearest token by size
+          const n = num(cs.getPropertyValue(prop)); let best = 0; let bd = Infinity;
+          items.forEach((it, k) => { const v = num(it.primitive); if (v !== null && n !== null && Math.abs(v - n) < bd) { bd = Math.abs(v - n); best = k; } });
+          i = best;
+        }
+        base = i;
+      }, true);
       scrub(inp, {
         step: 14,
         onDelta: (steps) => {
@@ -1602,7 +1849,7 @@
     inp.addEventListener('keydown', (e) => {
       e.stopPropagation();
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); if (!mine()) open(); dd.move(e.key === 'ArrowDown' ? 1 : -1); return; }
-      if (e.key === 'Enter') { e.preventDefault(); if (mine() && dd.filter && dd.pickHighlighted()) return; commit(inp.value); closeDropdown(); inp.blur(); return; }
+      if (e.key === 'Enter') { e.preventDefault(); if (mine() && dd.hl >= 0 && dd.shown[dd.hl] && dd.shown[dd.hl].value !== inp.value && dd.pickHighlighted()) return; commit(inp.value); closeDropdown(); inp.blur(); return; }
       if (e.key === 'Escape') { e.preventDefault(); inp.value = current; closeDropdown(); inp.blur(); return; }
       if (e.key === 'Tab') closeDropdown();
     });
@@ -1643,7 +1890,7 @@
       e.stopPropagation();
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); if (!mine()) open(); dd.move(e.key === 'ArrowDown' ? 1 : -1); }
       else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (mine()) { if (!dd.pickHighlighted()) closeDropdown(); } else open(); }
-      else if (e.key === 'Escape') { e.preventDefault(); closeDropdown(); b.blur(); }
+      else if (e.key === 'Escape') { e.preventDefault(); if (mine()) closeDropdown(); else if (modal && modal.contains(b)) closeCommitModal(); else b.blur(); }
       else if (e.key === 'Tab') closeDropdown();
     });
     return b;
@@ -1662,25 +1909,26 @@
     const u = mk('u', 'span');
     const unitText = (v) => { const h = spacingHint(v); return h ? `px · ${h}` : 'px'; };
     u.textContent = unitText(px);
-    fieldKeys(inp, () => { inp.value = String(px); });
+    const livePx = () => Math.round(parseFloat(getComputedStyle(state.selectedEl).getPropertyValue(`${prop}-start`) || getComputedStyle(state.selectedEl).getPropertyValue(prop)) || 0);
     const setPx = (vIn) => {
       const v = Math.max(0, vIn);
       previewSpacingPx(prop, v);
       inp.value = String(normPx(v));
       u.textContent = unitText(v);
     };
+    numericKeys(inp, { reset: () => { inp.value = String(livePx()); u.textContent = unitText(livePx()); }, step: 1, bigStep: spacingBasePx() || 10, nudge: (by) => setPx((parseFloat(inp.value) || 0) + by) });
     let scrubBase = 0;
     inp.addEventListener('pointerdown', () => { scrubBase = Math.round(parseFloat(inp.value) || 0); }, true);
     scrub(inp, {
       step: 1,
       onDelta: (steps) => setPx(scrubBase + steps),
-      onClick: () => { inp.focus(); inp.select(); openNumericOptions(inp, spacingItems(), Math.round(parseFloat(inp.value) || 0), setPx); },
+      onClick: () => { inp.focus(); inp.select(); openNumericOptions(inp, spacingItems(), Math.round(parseFloat(inp.value) || 0), setPx, spacingEmptyText()); },
     });
-    inp.addEventListener('dblclick', (e) => { e.preventDefault(); revertProps([prop]); });
+    dblclickReset(inp, prop);
     inp.addEventListener('input', () => { if (dd && dd.anchor === inp) dd.setFilter(inp.value); });
     inp.addEventListener('change', () => {
       const parsed = parseFloat(inp.value);
-      if (inp.value.trim() === '' || Number.isNaN(parsed)) { inp.value = String(px); return; } // blank or junk: leave it alone
+      if (inp.value.trim() === '' || Number.isNaN(parsed)) { inp.value = String(livePx()); return; } // blank or junk: leave it alone
       setPx(parsed);
     });
     wrap.append(inp, u);
@@ -1750,12 +1998,14 @@
       if (e.key === 'Escape') { e.preventDefault(); ta.blur(); }
     });
     const scopes = mk('scopes');
-    ['auto', 'instance', 'component', 'token'].forEach((sc) => {
-      const b = mk('scope' + (sc === state.draftScope ? ' on' : ''), 'button');
-      b.textContent = sc;
+    SCOPES.forEach((sc) => {
+      const b = mk('scope' + (sc.value === state.draftScope ? ' on' : ''), 'button');
+      b.textContent = sc.label;
+      b.title = sc.title;
+      b.setAttribute('aria-pressed', String(sc.value === state.draftScope));
       b.addEventListener('click', () => {
-        state.draftScope = sc;
-        scopes.querySelectorAll('.scope').forEach((x) => x.classList.toggle('on', x === b));
+        state.draftScope = sc.value;
+        scopes.querySelectorAll('.scope').forEach((x) => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', String(x === b)); });
       });
       scopes.append(b);
     });
@@ -1819,10 +2069,13 @@
     const T = state.traces;
     const cs = getComputedStyle(target);
     const r = target.getBoundingClientRect();
-    const hardcoded = Object.values(T).filter((x) => x.status === 'hardcoded').length;
+    // one per visible control: all padding sides count once, all margin sides once
+    const hardcoded = new Set(Object.entries(T).filter(([, x]) => x.status === 'hardcoded').map(([k]) => k.replace(/^(padding|margin)(-.*)?$/, '$1'))).size;
     const srcLine = src.file ? `${src.file}:${src.line}:${src.col}` : '';
+    const srcIsAncestor = src.via === 'stamp-ancestor';
 
     panelScroll.innerHTML = '';
+    panelHead.innerHTML = '';
     const title = mk('p-title');
     title.innerHTML = `<span class="name">${esc(chain[0] || target.tagName.toLowerCase())}</span><span class="tag">&lt;${esc(target.tagName.toLowerCase())}&gt;</span>`;
     const btns = mk('hdr-btns');
@@ -1849,11 +2102,12 @@
     const classes = mk('p-classes');
     classes.textContent = [...target.classList].join(' ');
     classes.title = classes.textContent;
-    panelScroll.append(title, sub);
+    panelHead.append(title);
+    panelScroll.append(sub);
     if (srcLine) {
       const srcEl = mk('p-src mono', 'button');
-      srcEl.textContent = srcLine;
-      srcEl.title = 'Source of this element. Click to copy';
+      srcEl.textContent = (srcIsAncestor ? '↑ ' : '') + srcLine;
+      srcEl.title = (srcIsAncestor ? 'Nearest mapped ancestor (this element itself is not mapped to a source line). ' : 'Source of this element. ') + 'Click to copy';
       srcEl.addEventListener('click', () => {
         const done = () => showToast(`Copied ${srcLine}`, 1800);
         if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(srcLine).then(done, done);
@@ -1924,7 +2178,6 @@
     opacityIn.type = 'text'; opacityIn.inputMode = 'numeric';
     const opStart = () => Math.round(parseFloat(getComputedStyle(state.selectedEl).opacity) * 100);
     opacityIn.value = String(opStart());
-    fieldKeys(opacityIn, () => { opacityIn.value = String(opStart()); });
     const setOpacity = (vIn) => {
       const v = Math.min(100, Math.max(0, Math.round(vIn)));
       applyPreview('opacity', String(v / 100), { label: `${v}%`, primitive: String(v / 100), system: true });
@@ -1935,9 +2188,10 @@
     scrub(opacityIn, {
       step: 2,
       onDelta: (steps) => setOpacity(opBase + steps),
-      onClick: () => { opacityIn.focus(); opacityIn.select(); openNumericOptions(opacityIn, [0, 5, 10, 20, 25, 30, 40, 50, 60, 70, 75, 80, 90, 95, 100].map((v) => ({ value: v, label: `${v}%` })), opStart(), setOpacity); },
+      onClick: () => { opacityIn.focus(); opacityIn.select(); openNumericOptions(opacityIn, [0, 5, 10, 20, 25, 30, 40, 50, 60, 70, 75, 80, 90, 95, 100].map((v) => ({ value: v, label: `${v}%` })), opStart(), setOpacity, 'No preset. Enter keeps the value (0 to 100)'); },
     });
-    opacityIn.addEventListener('dblclick', (e) => { e.preventDefault(); revertProps(['opacity']); });
+    numericKeys(opacityIn, { reset: () => { opacityIn.value = String(opStart()); }, step: 1, bigStep: 10, nudge: (by) => setOpacity((parseFloat(opacityIn.value) || 0) + by) });
+    dblclickReset(opacityIn, 'opacity');
     opacityIn.addEventListener('input', () => { if (dd && dd.anchor === opacityIn) dd.setFilter(opacityIn.value); });
     opacityIn.addEventListener('change', () => {
       const parsed = parseFloat(opacityIn.value);
@@ -1994,7 +2248,7 @@
       const n = childrenOf(k).length;
       b.innerHTML = `<span class="ml">${esc(label)}</span>${n ? `<span class="mc">${n} inside</span>` : ''}`;
       b.title = (k.textContent || '').trim().slice(0, 80) || label;
-      b.addEventListener('click', () => { closeChildMenu(); openPrompt(k); });
+      b.addEventListener('click', () => { closeChildMenu(); openPrompt(k, { keepScroll: true }); });
       childMenu.append(b);
     });
     if (kids.length > 14) { const more = mk('more'); more.textContent = `+${kids.length - 14} more (click one to descend, then open its children)`; childMenu.append(more); }
@@ -2061,7 +2315,7 @@
       if (node === target) { b.className = 'cur'; cur = b; }
       b.textContent = label.slice(0, 22);
       b.title = label;
-      b.addEventListener('click', () => openPrompt(node));
+      b.addEventListener('click', () => openPrompt(node, { keepScroll: true }));
       crumbs.append(b);
       if (node === target) {
         const kids = childrenOf(node);
@@ -2091,6 +2345,7 @@
     state.picking = false;
     state.selectedEl = null;
     state.trailLeaf = null;
+    watchSelected(null);
     applyDock();
     syncPill();
     syncCursor();
@@ -2098,22 +2353,72 @@
     crumbs.style.display = 'none';
   };
 
-  const openPrompt = (target) => {
+  const openPrompt = (target, { keepScroll = false } = {}) => {
     state.selectedEl = target;
     state.promptOpen = true;
     state.hoverEl = null;
     hi.style.display = 'none';
     hiLabel.style.display = 'none';
     box(target, ring, 1);
-    renderPanel(target);
+    renderPanel(target, keepScroll);
+    watchSelected(target);
     syncPill();
     syncCursor();
   };
 
   // Keep the ring and hover box glued to their elements while the page scrolls or resizes.
   let rafPending = false;
+  // The page re-rendered under us (HMR, a route change, a list re-keyed): pending edits follow
+  // the element that took the old one's place when there is a clear match, or are dropped with a note
+  let reconcileTimer = 0;
+  const reconcilePending = () => {
+    if (reconcileTimer) { clearTimeout(reconcileTimer); reconcileTimer = 0; }
+    let moved = 0;
+    let dropped = 0;
+    for (const [elx, map] of [...state.pending]) {
+      if (elx.isConnected || !map.size) continue;
+      const stampSel = elx.getAttribute('data-claude-source');
+      const text = (elx.textContent || '').trim();
+      const twin = stampSel
+        ? [...document.querySelectorAll(`[data-claude-source="${CSS.escape(stampSel)}"]`)].find((c) => (c.textContent || '').trim() === text && !state.pending.has(c)) || null
+        : null;
+      state.pending.delete(elx);
+      if (twin) {
+        state.pending.set(twin, map);
+        for (const c of map.values()) reapplyOverride(twin, c);
+        moved += map.size;
+      } else {
+        dropped += map.size;
+      }
+    }
+    if (moved || dropped) {
+      renderTray();
+      if (state.promptOpen && state.selectedEl && state.selectedEl.isConnected) renderPanel(state.selectedEl, true);
+      else refreshModMarks();
+      if (dropped) showToast(`The page updated: ${dropped} unsent change${dropped > 1 ? 's' : ''} lost ${dropped > 1 ? 'their' : 'its'} element and ${dropped > 1 ? 'were' : 'was'} dropped.`, 6000);
+    }
+  };
+  const scheduleReconcile = () => {
+    if (reconcileTimer) return;
+    reconcileTimer = setTimeout(() => { reconcileTimer = 0; reconcilePending(); }, 120);
+  };
+
   const reposition = () => {
     rafPending = false;
+    if (state.promptOpen && state.selectedEl && !state.selectedEl.isConnected) {
+      if (state.pending.size) reconcilePending(); // previews move to the twin before the panel reads it
+      const live = liveTarget();
+      if (live) {
+        // same stamp, same text: the re-rendered twin is the selection now
+        state.selectedEl = live;
+        renderPanel(live, true);
+      } else {
+        ring.style.display = 'none';
+        showToast('The page updated under your selection; pick the element again.', 5000);
+        closePrompt();
+        return;
+      }
+    }
     if (state.promptOpen && state.selectedEl && state.selectedEl.isConnected) box(state.selectedEl, ring, 1);
     if (inspecting() && state.hoverEl && state.hoverEl.isConnected) {
       const r = box(state.hoverEl, hi);
@@ -2133,6 +2438,27 @@
     const ro = new ResizeObserver(() => reposition());
     ro.observe(document.documentElement);
     if (document.body) ro.observe(document.body);
+  }
+  // the selected element itself resizing (text change, image load, HMR) re-glues the ring
+  let selRO = null;
+  const watchSelected = (elx) => {
+    if (typeof ResizeObserver === 'undefined') return;
+    if (selRO) selRO.disconnect();
+    selRO = null;
+    if (!elx) return;
+    selRO = new ResizeObserver(() => onScrollOrResize());
+    selRO.observe(elx);
+  };
+  // removed nodes: the selection and pending edits check themselves
+  if (typeof MutationObserver !== 'undefined' && document.body) {
+    new MutationObserver((muts) => {
+      if (!state.active) return;
+      let removed = false;
+      for (const m of muts) if (m.removedNodes.length) { removed = true; break; }
+      if (!removed) return;
+      if (state.promptOpen && state.selectedEl && !state.selectedEl.isConnected) onScrollOrResize();
+      if (state.pending.size) scheduleReconcile();
+    }).observe(document.body, { childList: true, subtree: true });
   }
   document.documentElement.addEventListener('transitionend', (e) => { if (e.target === document.documentElement) reposition(); });
 
@@ -2167,44 +2493,76 @@
     e.preventDefault();
     e.stopImmediatePropagation();
     if (e.type !== 'click') return;
+    if (e.detail === 0 && e.clientX === 0 && e.clientY === 0) return; // keyboard-synthesised click: nothing at (0,0) to pick
     let t = document.elementFromPoint(e.clientX, e.clientY);
     if (!t || isOurs(t) || t === document.body || t === document.documentElement) return;
-    if (e.altKey) {
-      const base = state.selectedEl || state.hoverEl || t;
+    if (e.altKey) { // Alt+click: the parent of what is under the pointer
+      const base = (state.hoverEl && state.hoverEl.isConnected) ? state.hoverEl : t;
       t = base.parentElement && base.parentElement !== document.body ? base.parentElement : base;
     }
     openPrompt(t);
   };
+  const clearHover = () => { hi.style.display = 'none'; hiLabel.style.display = 'none'; state.hoverEl = null; };
+  document.addEventListener('pointerleave', clearHover, true);
+  document.documentElement.addEventListener('mouseleave', clearHover);
+  window.addEventListener('blur', clearHover);
 
+  const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || '');
+  const isTextEntry = (n) => n instanceof Element && (n.tagName === 'TEXTAREA' || n.isContentEditable
+    || (n.tagName === 'INPUT' && !/^(button|checkbox|radio|range|color|file|submit|reset|image)$/i.test(n.type || 'text')));
+  const inOurUI = (n) => isOurs(n) || (n && n.getRootNode && n.getRootNode() === shadow);
   const onKey = (e) => {
-    if (cfg.hotkey && (e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.code === 'KeyD') {
+    const origin = e.composedPath ? e.composedPath()[0] : e.target;
+    // Cmd+D on Mac, Ctrl+D elsewhere (Ctrl+D is delete-forward in Mac text fields); never while typing
+    const mod = IS_MAC ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey;
+    if (cfg.hotkey && mod && !e.shiftKey && !e.altKey && e.code === 'KeyD') {
+      if (isTextEntry(origin)) return;
       e.preventDefault();
       api.toggle();
       return;
     }
     if (!state.active) return;
-    const origin = e.composedPath ? e.composedPath()[0] : e.target;
     if (origin && origin.hasAttribute && origin.hasAttribute('data-cdm-field')) return; // panel fields handle their own keys
-    if (e.key === 'Enter' && state.promptOpen && state.promptOpenSection && !e.isComposing) {
+    // Enter from the page (nothing of ours focused) opens the Ask Claude section; inside the
+    // sidebar Enter belongs to whatever is focused (buttons activate, fields commit)
+    if (e.key === 'Enter' && state.promptOpen && state.promptOpenSection && !e.isComposing && !modal && !inOurUI(origin) && !isTextEntry(origin)) {
       e.preventDefault();
       e.stopImmediatePropagation();
       state.promptOpenSection();
       return;
     }
     if (e.key === 'Escape' && !e.isComposing) {
+      if (isTextEntry(origin) && !inOurUI(origin)) return; // a page input's own Escape
       e.preventDefault();
       e.stopImmediatePropagation();
-      if (dd) closeDropdown();
+      if (confirmEl) closeConfirm();
+      else if (dd) closeDropdown();
       else if (modal) closeCommitModal();
       else if (childMenu) closeChildMenu();
       else if (state.promptOpen) closePrompt();
-      else api.disable();
+      else requestDisable();
     }
+  };
+
+  // The last Esc (or the pill's esc, or the hotkey) with unsent edits on the page: ask before dropping them
+  const requestDisable = () => {
+    const n = pendingCount();
+    if (!n) { api.disable(); return; }
+    confirmBox({
+      text: `Exit Design Mode and discard ${n} unsent change${n > 1 ? 's' : ''}?`,
+      ok: 'Discard and exit',
+      onOk: () => api.disable(),
+    });
   };
 
   document.addEventListener('pointermove', onMove, { capture: true, passive: true });
   for (const type of SUPPRESSED) document.addEventListener(type, onSuppressed, { capture: true });
   document.addEventListener('keydown', onKey, { capture: true });
+  window.addEventListener('beforeunload', (e) => {
+    if (!pendingCount()) return;
+    e.preventDefault();
+    e.returnValue = ''; // unsent design edits would be lost
+  });
 
   /* ---------------------------------------------------------------- api --- */
 
@@ -2221,6 +2579,8 @@
       syncCursor();
     },
     disable() {
+      closeConfirm();
+      if (pendingCount()) discardAll();
       state.active = false;
       state.picking = false;
       state.hoverEl = null;
@@ -2230,7 +2590,7 @@
       syncPill();
       syncCursor();
     },
-    toggle() { state.active ? api.disable() : api.enable(); },
+    toggle() { state.active ? requestDisable() : api.enable(); },
     isActive() { return state.active; },
     peek() { return state.queue.slice(); },
     take() {

@@ -77,12 +77,17 @@ skill's Tier 1 section covers it; selections then never leave the page.
 
 ### In the page
 
-`Cmd+D` toggles the inspector. Hover highlights, click selects: a sidebar docks
-on the right (drag its header to snap left) with breadcrumbs, a collapsed "Ask
-Claude" prompt, and Layout / Spacing / Typography / Appearance controls.
-Clicking a value lists the tokens your app actually defines, dragging a value
-scrubs it, double-clicking resets it. Every change previews instantly; "Ask
-Claude to commit" shows the list with an optional note and ships it.
+`Cmd+D` toggles Design Mode. While nothing is selected the page is in inspect
+mode (crosshair cursor, hover highlights, click selects). Selecting an element
+docks a sidebar on the right (drag its header to snap left) with breadcrumbs, a
+collapsed "Ask Claude" prompt, and Layout / Spacing / Typography / Appearance
+controls; the page is interactive again, and the pick button in the sidebar
+header re-arms inspecting without closing it. Clicking a value lists the tokens
+your app actually defines, dragging a value scrubs it, double-clicking resets
+it; a dot beside a label means the property has a pending change, a small
+triangle means the value is a literal with no token behind it. Every change
+previews instantly; "Ask Claude to commit" shows the list with an optional note
+and ships it.
 
 ## How it works
 
