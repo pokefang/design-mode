@@ -55,6 +55,7 @@
     active: false,
     promptOpen: false,
     picking: false,       // hover inspector stays on while the sidebar is open
+    trailLeaf: null,      // deepest element of the breadcrumb trail (children stay visible)
     promptExpanded: false,
     draft: '',
     draftScope: 'auto',
@@ -162,7 +163,9 @@
     .tray-foot select.ctl { width: auto; height: 26px; flex: 1; min-width: 0; }
     .tray-status { color: #9B9B9B; font-size: 10.5px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
     .tray-status button { background: none; border: none; color: #8FB2FF; padding: 0; font-size: 10.5px; }
-    .toast { position: fixed; display: none; pointer-events: none; bottom: 14px; left: 14px; background: #1E1E1E; border: 1px solid #333; border-radius: 8px; padding: 8px 12px; max-width: 46vw; }
+    .toast { position: fixed; display: none; pointer-events: none; bottom: 56px; left: 14px; background: #1E1E1E; border: 1px solid #333; border-radius: 8px; padding: 8px 12px; max-width: 46vw; }
+    .pill { position: fixed; display: none; pointer-events: auto; left: 14px; bottom: 14px; align-items: center; gap: 10px; background: #1E1E1E; border: 1px solid #333; border-radius: 99px; padding: 5px 6px 5px 12px; box-shadow: 0 6px 24px rgba(0,0,0,0.35); font-weight: 600; }
+    .pill .muted { color: #9B9B9B; font-weight: 400; }
     .hdr-btns { margin-left: auto; display: flex; align-items: center; gap: 4px; flex: none; }
     .kbtn { flex: none; height: 20px; display: inline-flex; align-items: center; font: 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.02em; padding: 0 6px; border-radius: 4px; border: 1px solid #3A3A3A; border-bottom-width: 2px; background: #2B2B2B; color: #9B9B9B; }
     .kbtn:hover { color: #E8E8E8; border-color: #4A4A4A; }
@@ -170,6 +173,16 @@
     .kbtn.on { color: #0C8CE9; border-color: #0C8CE9; background: rgba(12,140,233,0.15); }
     .crumbs { display: none; align-items: center; gap: 1px; border-top: 1px solid #333; background: #232323; padding: 7px 10px; white-space: nowrap; overflow-x: auto; overflow-y: hidden; font-size: 11px; scrollbar-width: none; flex: none; }
     .crumbs::-webkit-scrollbar { display: none; }
+    .crumbs { position: relative; }
+    .crumbs button.kids { color: #9B9B9B; padding: 2px 6px; }
+    .crumbs button.kids:hover, .crumbs button.kids.on { color: #E8E8E8; background: #2B2B2B; }
+    .menu { position: absolute; right: 8px; z-index: 2; background: #2B2B2B; border: 1px solid #3A3A3A; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); padding: 4px; min-width: 170px; max-width: 250px; max-height: 45%; overflow: auto; }
+    .menu .mh { color: #9B9B9B; font-size: 10px; padding: 3px 8px 5px; }
+    .menu button { display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 8px; padding: 5px 8px; border: none; background: none; color: #E8E8E8; border-radius: 5px; text-align: left; min-width: 0; }
+    .menu button:hover { background: #3A3A3A; }
+    .menu .ml { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+    .menu .mc { color: #9B9B9B; font-size: 10px; flex: none; }
+    .menu .more { color: #9B9B9B; font-size: 10px; padding: 4px 8px; }
     .crumbs .sep, .crumbs .dots { color: #9B9B9B; padding: 0 2px; flex: none; }
     .crumbs button { background: none; border: none; padding: 2px 5px; border-radius: 4px; color: #E8E8E8; flex: none; }
     .crumbs button.cur { color: #0C8CE9; font-weight: 600; }
@@ -187,7 +200,15 @@
   const crumbs = mk('crumbs ui');
   panel.append(panelScroll, crumbs, tray);
   const toast = mk('toast ui');
-  shadow.append(hi, hiLabel, ring, panel, toast);
+  const pill = mk('pill ui');
+  pill.innerHTML = '<span>Design Mode</span><span class="muted">click an element</span>';
+  const pillEsc = mk('kbtn', 'button');
+  pillEsc.textContent = 'esc';
+  pillEsc.title = 'Exit Design Mode (Esc)';
+  pillEsc.addEventListener('click', () => api.disable());
+  pill.append(pillEsc);
+  const syncPill = () => { pill.style.display = state.active && !state.promptOpen ? 'flex' : 'none'; };
+  shadow.append(hi, hiLabel, ring, panel, toast, pill);
 
   const ensureMounted = () => { if (!host.isConnected) document.documentElement.append(host); };
   ensureMounted();
@@ -1053,10 +1074,7 @@
     const escBtn = mk('kbtn', 'button');
     escBtn.textContent = 'esc';
     escBtn.title = 'Close (Esc)';
-    escBtn.addEventListener('click', () => {
-      closePrompt();
-      showToast('Design Mode still on: click another element, or press Esc again to exit.', 4000);
-    });
+    escBtn.addEventListener('click', () => closePrompt());
     btns.append(pickBtn, escBtn);
     title.append(btns);
     const sub = mk('p-sub');
@@ -1139,39 +1157,104 @@
     renderCrumbs(target);
   };
 
+  const childrenOf = (node) => [...node.children].filter((c) => !isOurs(c) && c.tagName !== 'SCRIPT' && c.tagName !== 'STYLE');
+  const nodeLabel = (node, prevComp) => {
+    const f = ownFiber(node);
+    const comp = f ? componentChain(f)[0] : null;
+    const label = (comp && comp !== prevComp) ? comp : node.tagName.toLowerCase() + (node.classList[0] ? '.' + node.classList[0] : '');
+    return { label, comp };
+  };
+
+  let childMenu = null;
+  let childMenuAnchor = null;
+  const closeChildMenu = () => {
+    if (childMenu) { childMenu.remove(); childMenu = null; }
+    if (childMenuAnchor) childMenuAnchor.classList.remove('on');
+  };
+  const openChildMenu = (leaf) => {
+    closeChildMenu();
+    const kids = childrenOf(leaf);
+    if (!kids.length) return;
+    childMenu = mk('menu ui');
+    const head = mk('mh');
+    head.textContent = `${kids.length} child element${kids.length > 1 ? 's' : ''} of ${nodeLabel(leaf, null).label}`;
+    childMenu.append(head);
+    const { comp: leafComp } = nodeLabel(leaf, null);
+    kids.slice(0, 14).forEach((k) => {
+      const b = document.createElement('button');
+      const { label } = nodeLabel(k, leafComp);
+      const n = childrenOf(k).length;
+      b.innerHTML = `<span class="ml">${esc(label)}</span>${n ? `<span class="mc">${n} inside</span>` : ''}`;
+      b.title = (k.textContent || '').trim().slice(0, 80) || label;
+      b.addEventListener('click', () => { closeChildMenu(); openPrompt(k); });
+      childMenu.append(b);
+    });
+    if (kids.length > 14) { const more = mk('more'); more.textContent = `+${kids.length - 14} more (click one to descend, then open its children)`; childMenu.append(more); }
+    panel.append(childMenu);
+    const pr = panel.getBoundingClientRect();
+    const cr = crumbs.getBoundingClientRect();
+    childMenu.style.bottom = `${pr.bottom - cr.top + 4}px`;
+    if (childMenuAnchor) childMenuAnchor.classList.add('on');
+  };
+  // any click outside the menu (and not on its anchor) closes it
+  shadow.addEventListener('click', (e) => {
+    if (!childMenu) return;
+    const path = e.composedPath();
+    if (!path.includes(childMenu) && !path.includes(childMenuAnchor)) closeChildMenu();
+  }, true);
+
+  // The trail runs from the app root down to the deepest element reached, so
+  // stepping up to a parent keeps the children visible; the current element is
+  // highlighted wherever it sits and carries a picker listing all its children.
   const renderCrumbs = (target) => {
+    closeChildMenu();
+    if (!(state.trailLeaf && state.trailLeaf.isConnected && target.contains(state.trailLeaf))) state.trailLeaf = target;
+    const leaf = state.trailLeaf;
     const path = [];
-    let n = target;
-    while (n && n !== document.body && path.length < 12) { path.push(n); n = n.parentElement; }
+    let n = leaf;
+    while (n && n !== document.body && path.length < 16) { path.push(n); n = n.parentElement; }
     path.reverse();
-    const shown = path.length > 6 ? [path[0], null, ...path.slice(-4)] : path;
     crumbs.innerHTML = '';
     let prevComp = null;
-    shown.forEach((node, i) => {
+    let cur = null;
+    path.forEach((node, i) => {
       if (i) { const sep = mk('sep', 'span'); sep.textContent = '›'; crumbs.append(sep); }
-      if (!node) { const dots = mk('dots', 'span'); dots.textContent = '…'; crumbs.append(dots); return; }
-      const f = ownFiber(node);
-      const comp = f ? componentChain(f)[0] : null;
-      const label = (comp && comp !== prevComp) ? comp : node.tagName.toLowerCase() + (node.classList[0] ? '.' + node.classList[0] : '');
+      const { label, comp } = nodeLabel(node, prevComp);
       if (comp) prevComp = comp;
       const b = document.createElement('button');
-      if (node === target) b.className = 'cur';
+      if (node === target) { b.className = 'cur'; cur = b; }
       b.textContent = label.slice(0, 22);
       b.title = label;
       b.addEventListener('click', () => openPrompt(node));
       crumbs.append(b);
+      if (node === target) {
+        const kids = childrenOf(node);
+        childMenuAnchor = null;
+        if (kids.length) {
+          const more = mk('kids', 'button');
+          more.textContent = '▾';
+          more.title = `${kids.length} child element${kids.length > 1 ? 's' : ''} of ${label}: pick one to go deeper`;
+          more.addEventListener('click', () => (childMenu ? closeChildMenu() : openChildMenu(node)));
+          childMenuAnchor = more;
+          crumbs.append(more);
+        }
+      }
     });
     crumbs.style.display = 'flex';
-    crumbs.scrollLeft = crumbs.scrollWidth;
+    if (cur) crumbs.scrollLeft = Math.max(0, cur.offsetLeft - crumbs.clientWidth / 2 + cur.offsetWidth / 2);
+    else crumbs.scrollLeft = crumbs.scrollWidth;
   };
 
   /* ---------------------------------------------------------- selection --- */
 
   const closePrompt = () => {
+    closeChildMenu();
     state.promptOpen = false;
     state.picking = false;
     state.selectedEl = null;
+    state.trailLeaf = null;
     panel.style.display = 'none';
+    syncPill();
     ring.style.display = 'none';
     crumbs.style.display = 'none';
   };
@@ -1184,6 +1267,7 @@
     hiLabel.style.display = 'none';
     box(target, ring, 1);
     renderPanel(target);
+    syncPill();
   };
 
   // Keep the ring and hover box glued to their elements while the page scrolls or resizes.
@@ -1231,6 +1315,7 @@
   const onSuppressed = (e) => {
     if (!state.active) return;
     if (isOurs(e.target)) return; // our own UI stays interactive
+    if (e.type === 'click' && childMenu) closeChildMenu();
     e.preventDefault();
     e.stopImmediatePropagation();
     if (e.type !== 'click') return;
@@ -1261,7 +1346,8 @@
     if (e.key === 'Escape' && !e.isComposing) {
       e.preventDefault();
       e.stopImmediatePropagation();
-      if (state.promptOpen) closePrompt();
+      if (childMenu) closeChildMenu();
+      else if (state.promptOpen) closePrompt();
       else api.disable();
     }
   };
@@ -1281,6 +1367,7 @@
     enable() {
       ensureMounted();
       state.active = true;
+      syncPill();
       showToast('Design Mode on. Click an element; Esc to exit.');
     },
     disable() {
@@ -1290,6 +1377,7 @@
       closePrompt();
       hi.style.display = 'none';
       hiLabel.style.display = 'none';
+      syncPill();
       showToast('Design Mode off.');
     },
     toggle() { state.active ? api.disable() : api.enable(); },
