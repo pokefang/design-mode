@@ -2054,6 +2054,7 @@
 
   const DOCK_ICON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M10 3v10"/><path d="M4.5 8h3M6.5 6.5 8 8l-1.5 1.5"/></svg>';
   const PICK_ICON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5H3a.5.5 0 0 0-.5.5v3M10 2.5h3a.5.5 0 0 1 .5.5v3M6 13.5H3a.5.5 0 0 1-.5-.5v-3"/><path d="M8 8l5.5 2-2.4 1.1L10 13.5z" fill="currentColor" stroke="none"/></svg>';
+  const CLOSE_ICON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>';
 
   // The hover inspector normally rests once something is selected; picking keeps it on
   // so the user can re-target the open sidebar with another click.
@@ -2108,11 +2109,13 @@
     pickBtn.setAttribute('aria-pressed', String(state.picking));
     pickBtn.addEventListener('click', () => setPicking(!state.picking));
     state.pickBtn = pickBtn;
-    const escBtn = mk('kbtn', 'button');
-    escBtn.textContent = 'esc';
-    escBtn.title = 'Close the sidebar (Esc). Esc again exits Design Mode';
-    escBtn.addEventListener('click', () => closePrompt());
-    btns.append(dockBtn, pickBtn, escBtn);
+    // an X, not a keycap: this closes the sidebar and leaves Design Mode on (Esc does the same)
+    const closeBtn = mk('kbtn', 'button');
+    closeBtn.innerHTML = CLOSE_ICON;
+    closeBtn.title = 'Close the sidebar (Esc). Design Mode stays on; Esc again exits';
+    closeBtn.setAttribute('aria-label', 'Close the sidebar');
+    closeBtn.addEventListener('click', () => closePrompt());
+    btns.append(dockBtn, pickBtn, closeBtn);
     title.append(btns);
     const sub = mk('p-sub');
     sub.textContent = chain.slice(1).join(' ← ');
