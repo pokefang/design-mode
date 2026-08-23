@@ -145,7 +145,17 @@
     .ctl:hover { border-color: #3A3A3A; }
     .ctl:focus { border-color: #0C8CE9; }
     .ctl[disabled] { color: #9B9B9B; }
-    select.ctl { appearance: none; -webkit-appearance: none; background-image: linear-gradient(45deg, transparent 50%, #9B9B9B 50%), linear-gradient(135deg, #9B9B9B 50%, transparent 50%); background-position: calc(100% - 12px) 11px, calc(100% - 8px) 11px; background-size: 4px 4px; background-repeat: no-repeat; padding-right: 20px; }
+    .ctl.sel { display: flex; align-items: center; justify-content: space-between; gap: 6px; text-align: left; cursor: pointer; }
+    .ctl.sel .v { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+    .ctl.sel .chev { color: #9B9B9B; font-size: 8px; flex: none; }
+    .dd { position: absolute; z-index: 4; background: #2B2B2B; border: 1px solid #3A3A3A; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); padding: 4px; overflow: auto; min-width: 160px; }
+    .dd .it { display: flex; align-items: center; gap: 8px; width: 100%; padding: 5px 8px; border: none; background: none; color: #E8E8E8; border-radius: 5px; text-align: left; min-width: 0; cursor: pointer; }
+    .dd .it:hover, .dd .it.hl { background: #3A3A3A; }
+    .dd .it.cur .lab { color: #0C8CE9; }
+    .dd .it .sw { width: 12px; height: 12px; border-radius: 3px; flex: none; border: 1px solid #3A3A3A; }
+    .dd .it .lab { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .dd .it .pv { color: #9B9B9B; font-size: 10px; flex: none; max-width: 46%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .dd .empty { color: #9B9B9B; padding: 6px 8px; font-size: 10.5px; }
     input[type=number].ctl { -moz-appearance: textfield; }
     input[type=number].ctl::-webkit-inner-spin-button { opacity: 0.6; }
     .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; min-width: 0; }
@@ -167,7 +177,8 @@
     .modal-list .chg { padding: 5px 0; }
     .modal-body { padding: 10px 14px 14px; display: flex; flex-direction: column; gap: 8px; border-top: 1px solid #2C2C2C; }
     .modal-foot { display: flex; align-items: center; gap: 8px; }
-    .modal-foot select.ctl { width: auto; flex: 1; min-width: 0; }
+    .modal-foot .ctl.sel { width: auto; flex: 1; min-width: 0; }
+    .modal { position: relative; }
     .modal-empty { color: #9B9B9B; padding: 8px 0 12px; }
     .tray-h .muted { color: #9B9B9B; font-weight: 400; font-size: 10.5px; }
     .chg { display: grid; grid-template-columns: 1fr auto; gap: 6px; align-items: center; padding: 3px 0; border-bottom: 1px solid #2C2C2C; min-width: 0; }
@@ -873,7 +884,7 @@
   };
 
   let modal = null;
-  const closeCommitModal = () => { if (modal) { modal.remove(); modal = null; } };
+  const closeCommitModal = () => { if (modal) { if (dd && modal.contains(dd.el)) closeDropdown(); modal.remove(); modal = null; } };
   const openCommitModal = () => {
     closeCommitModal();
     const bg = mk('modal-bg ui');
@@ -908,14 +919,12 @@
         if (e.key === 'Escape') { e.preventDefault(); closeCommitModal(); }
       });
       const foot = mk('modal-foot');
-      const scope = mk('ctl', 'select');
-      scope.setAttribute('data-cdm-field', '');
-      [['auto', 'Scope: auto'], ['instance', 'This instance'], ['component', 'All instances'], ['token', 'The token']].forEach(([v, l]) => {
-        const o = document.createElement('option'); o.value = v; o.textContent = l; scope.append(o);
+      const scope = selectInput({
+        options: [{ value: 'auto', label: 'Scope: auto' }, { value: 'instance', label: 'This instance' }, { value: 'component', label: 'All instances' }, { value: 'token', label: 'The token' }],
+        current: trayScopeValue,
+        onPick: (v) => { trayScopeValue = v; },
+        container: box_,
       });
-      scope.value = trayScopeValue;
-      scope.addEventListener('change', () => { trayScopeValue = scope.value; });
-      scope.addEventListener('keydown', (e) => e.stopPropagation());
       const cancel = mk('btn ghost', 'button');
       cancel.textContent = 'Cancel';
       cancel.addEventListener('click', closeCommitModal);
@@ -942,18 +951,75 @@
 
   /* ----------------------------------------------------------- controls --- */
 
-  const datalists = new Map();
-  const datalistFor = (key, names) => {
-    const id = `cdm-dl-${key}`;
-    let dl = datalists.get(key);
-    if (!dl) { dl = document.createElement('datalist'); dl.id = id; shadow.append(dl); datalists.set(key, dl); }
-    if (dl.dataset.n !== String(names.length)) {
-      dl.innerHTML = '';
-      for (const nme of names) { const o = document.createElement('option'); o.value = nme.replace(/^--/, ''); dl.append(o); }
-      dl.dataset.n = String(names.length);
-    }
-    return id;
+  // One in-panel dropdown at a time, drawn by the overlay (native <select>/<datalist>
+  // popups render outside the page and drift in scaled/embedded viewports).
+  let dd = null;
+  const closeDropdown = () => { if (dd) { dd.el.remove(); dd = null; } };
+  const openDropdown = ({ anchor, items, current, onPick, container = panel }) => {
+    closeDropdown();
+    const el = mk('dd ui');
+    el.addEventListener('mousedown', (e) => e.preventDefault()); // keep the field focused
+    const d = { el, anchor, items, shown: items, hl: -1, filter: '' };
+    const place = () => {
+      const c = container.getBoundingClientRect();
+      const a = anchor.getBoundingClientRect();
+      const innerW = c.width - 16;
+      const width = Math.min(innerW, Math.max(a.width, 230));
+      let left = a.left - c.left;
+      if (left + width > c.width - 8) left = Math.max(8, c.width - 8 - width);
+      const wanted = Math.min(260, d.shown.length * 27 + 10);
+      const below = c.bottom - a.bottom - 12;
+      const above = a.top - c.top - 12;
+      const up = below < Math.min(wanted, 140) && above > below;
+      const maxH = Math.max(80, Math.min(wanted, up ? above : below));
+      el.style.left = `${left}px`;
+      el.style.width = `${width}px`;
+      el.style.maxHeight = `${maxH}px`;
+      if (up) { el.style.bottom = `${c.bottom - a.top + 4}px`; el.style.top = 'auto'; }
+      else { el.style.top = `${a.bottom - c.top + 4}px`; el.style.bottom = 'auto'; }
+    };
+    const render = () => {
+      el.innerHTML = '';
+      if (!d.shown.length) { const e = mk('empty'); e.textContent = 'No matching token: Enter keeps the typed value (hardcoded)'; el.append(e); return; }
+      d.shown.forEach((it, i) => {
+        const b = mk('it' + (i === d.hl ? ' hl' : '') + (it.value === current ? ' cur' : ''), 'button');
+        b.type = 'button';
+        if (it.swatch) { const sw = mk('sw', 'span'); sw.style.background = it.swatch; b.append(sw); }
+        const lab = mk('lab', 'span'); lab.textContent = it.label; b.append(lab);
+        if (it.primitive) { const pv = mk('pv', 'span'); pv.textContent = it.primitive; pv.title = it.primitive; b.append(pv); }
+        b.title = it.primitive ? `${it.label} · ${it.primitive}` : it.label;
+        b.addEventListener('click', () => onPick(it));
+        b.addEventListener('mousemove', () => { if (d.hl !== i) { d.hl = i; [...el.children].forEach((c, k) => c.classList.toggle('hl', k === i)); } });
+        el.append(b);
+      });
+    };
+    const reveal = () => {
+      const row = el.children[d.hl];
+      if (!row) return;
+      const top = row.offsetTop, bottom = top + row.offsetHeight;
+      if (top < el.scrollTop) el.scrollTop = top - 4;
+      else if (bottom > el.scrollTop + el.clientHeight) el.scrollTop = bottom - el.clientHeight + 4;
+    };
+    d.setFilter = (f) => {
+      d.filter = f.toLowerCase();
+      d.shown = d.filter ? items.filter((it) => it.label.toLowerCase().includes(d.filter) || (it.primitive || '').toLowerCase().includes(d.filter)) : items;
+      d.hl = d.shown.length ? 0 : -1;
+      if (!d.filter) d.hl = Math.max(0, d.shown.findIndex((it) => it.value === current));
+      render(); place(); reveal();
+    };
+    d.move = (delta) => {
+      if (!d.shown.length) return;
+      d.hl = (d.hl + delta + d.shown.length) % d.shown.length;
+      [...el.children].forEach((c, k) => c.classList.toggle('hl', k === d.hl));
+      reveal();
+    };
+    d.pickHighlighted = () => { const it = d.shown[d.hl]; if (!it) return false; onPick(it); return true; };
+    container.append(el);
+    dd = d;
+    d.setFilter('');
+    return d;
   };
+  panelScroll.addEventListener('scroll', () => closeDropdown(), { passive: true });
 
   const row = (label, control, opts = {}) => {
     const r = mk('row');
@@ -976,41 +1042,58 @@
 
   const tipFor = (t) => t ? `${t.authored}${t.from ? ' · ' + t.from : ''}${t.chain.length ? ' · ' + t.chain.map((c) => c.name).join(' → ') + ' → ' + primitiveOf(t) : ''}` : 'not authored (inherited or default)';
 
-  // Token picker: a datalist-backed input listing the page's tokens of one family.
-  // Typing a token name previews var(--token); typing anything else previews the
-  // literal and flags it hardcoded.
+  // Token picker: a text field with an in-panel dropdown of the page's tokens of one
+  // family (swatch + primitive shown). Picking or typing a token previews var(--token);
+  // any other text previews the literal and flags it hardcoded.
   const tokenInput = ({ prop, family, key, swatch, special }) => {
     const t = state.traces[prop];
-    const cat = tokenCatalog();
-    const names = cat[key] || [];
+    const names = (tokenCatalog()[key] || []);
+    const idx = customProps();
     const cs = getComputedStyle(state.selectedEl);
-    const current = semanticName(t) || (t ? t.authored : '') || cs.getPropertyValue(prop).trim();
+    let current = semanticName(t) || (t ? t.authored : '') || cs.getPropertyValue(prop).trim();
     const wrap = mk(swatch ? 'swatched' : '');
     let sw = null;
     if (swatch) { sw = mk('sw', 'span'); sw.style.background = cs.getPropertyValue(prop); wrap.append(sw); }
     const inp = mk('ctl', 'input');
     inp.type = 'text';
-    inp.setAttribute('list', datalistFor(key, names));
     inp.value = current;
     inp.title = tipFor(t);
     inp.autocomplete = 'off';
     inp.spellcheck = false;
-    fieldKeys(inp, () => { inp.value = current; });
-    inp.addEventListener('change', () => {
-      const raw = inp.value.trim();
-      if (!raw || raw === current) return;
+    inp.setAttribute('data-cdm-field', '');
+    const items = [
+      ...Object.entries(special || {}).map(([k, v]) => ({ value: k, label: k, primitive: v.css })),
+      ...names.map((n) => { const prim = resolveVar(n, state.selectedEl); return { value: n.replace(/^--/, ''), label: n.replace(/^--/, ''), primitive: prim, swatch: swatch ? prim : null }; }),
+    ];
+    const commit = (rawIn) => {
+      const raw = rawIn.trim();
+      if (!raw || raw === current) { inp.value = current; return; }
       const name = raw.startsWith('--') ? raw : `--${raw}`;
-      const idx = customProps();
       if (idx[name] !== undefined && family.test(name)) {
         const prim = resolveVar(name, state.selectedEl);
         applyPreview(prop, `var(${name})`, { token: name, primitive: prim });
         if (sw) sw.style.background = prim;
+        inp.value = name.replace(/^--/, '');
       } else if (special && special[raw]) {
         applyPreview(prop, special[raw].css, { label: raw, primitive: special[raw].css, system: true });
       } else {
         applyPreview(prop, raw, { primitive: raw });
         if (sw) sw.style.background = raw;
       }
+      current = inp.value;
+    };
+    const mine = () => dd && dd.anchor === inp;
+    const open = () => openDropdown({ anchor: inp, items, current, onPick: (it) => { inp.value = it.value; commit(it.value); closeDropdown(); inp.blur(); } });
+    inp.addEventListener('focus', () => { if (!mine()) open(); });
+    inp.addEventListener('click', () => { if (!mine()) open(); });
+    inp.addEventListener('input', () => { if (!mine()) open(); dd.setFilter(inp.value); });
+    inp.addEventListener('change', () => commit(inp.value));
+    inp.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); if (!mine()) open(); dd.move(e.key === 'ArrowDown' ? 1 : -1); return; }
+      if (e.key === 'Enter') { e.preventDefault(); if (mine() && dd.filter && dd.pickHighlighted()) return; commit(inp.value); closeDropdown(); inp.blur(); return; }
+      if (e.key === 'Escape') { e.preventDefault(); inp.value = current; closeDropdown(); inp.blur(); return; }
+      if (e.key === 'Tab') closeDropdown();
     });
     wrap.append(inp);
     if (swatch) {
@@ -1021,18 +1104,38 @@
     return { node: wrap, hardcoded: !!t && t.status === 'hardcoded', tip: tipFor(t) };
   };
 
-  const selectInput = ({ prop, options, current, system = true }) => {
-    const sel = mk('ctl', 'select');
-    for (const o of options) {
-      const opt = document.createElement('option');
-      opt.value = o; opt.textContent = o; sel.append(opt);
-    }
-    if (!options.includes(current)) { const opt = document.createElement('option'); opt.value = current; opt.textContent = current; sel.prepend(opt); }
-    sel.value = current;
-    sel.setAttribute('data-cdm-field', '');
-    sel.addEventListener('keydown', (e) => e.stopPropagation());
-    sel.addEventListener('change', () => applyPreview(prop, sel.value, { label: sel.value, primitive: sel.value, system }));
-    return sel;
+  // Select-like control: a button that opens the same in-panel dropdown.
+  // options: strings or { value, label }. onPick overrides the default preview.
+  const selectInput = ({ prop, options, current, system = true, onPick, container }) => {
+    const opts = options.map((o) => (typeof o === 'string' ? { value: o, label: o } : o));
+    if (!opts.some((o) => o.value === current)) opts.unshift({ value: current, label: current });
+    const b = mk('ctl sel', 'button');
+    b.type = 'button';
+    b.setAttribute('data-cdm-field', '');
+    const v = mk('v', 'span');
+    const labelOf = (val) => (opts.find((o) => o.value === val) || { label: val }).label;
+    v.textContent = labelOf(current);
+    const ch = mk('chev', 'span');
+    ch.textContent = '▼';
+    b.append(v, ch);
+    let cur = current;
+    const pick = (it) => {
+      cur = it.value;
+      v.textContent = it.label;
+      closeDropdown();
+      if (onPick) onPick(it.value); else applyPreview(prop, it.value, { label: it.value, primitive: it.value, system });
+    };
+    const mine = () => dd && dd.anchor === b;
+    const open = () => openDropdown({ anchor: b, items: opts, current: cur, onPick: pick, container });
+    b.addEventListener('click', () => (mine() ? closeDropdown() : open()));
+    b.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); if (!mine()) open(); dd.move(e.key === 'ArrowDown' ? 1 : -1); }
+      else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (mine()) { if (!dd.pickHighlighted()) closeDropdown(); } else open(); }
+      else if (e.key === 'Escape') { e.preventDefault(); closeDropdown(); b.blur(); }
+      else if (e.key === 'Tab') closeDropdown();
+    });
+    return b;
   };
 
   // Spacing in framework units (multiples of --spacing), shown with the px it resolves to.
@@ -1175,6 +1278,7 @@
   };
 
   const renderPanel = (target, keepScroll = false) => {
+    closeDropdown();
     const scrollTop = keepScroll ? panelScroll.scrollTop : 0;
     const fiber = findFiber(target);
     const chain = fiber ? componentChain(fiber) : [];
@@ -1361,9 +1465,9 @@
 
   // any click outside the menu (and not on its anchor) closes it
   shadow.addEventListener('click', (e) => {
-    if (!childMenu) return;
     const path = e.composedPath();
-    if (!path.includes(childMenu) && !path.includes(childMenuAnchor)) closeChildMenu();
+    if (dd && !path.includes(dd.el) && !path.includes(dd.anchor)) closeDropdown();
+    if (childMenu && !path.includes(childMenu) && !path.includes(childMenuAnchor)) closeChildMenu();
   }, true);
 
   // The trail runs from the app root down to the deepest element reached, so
@@ -1411,6 +1515,7 @@
   /* ---------------------------------------------------------- selection --- */
 
   const closePrompt = () => {
+    closeDropdown();
     closeCommitModal();
     closeChildMenu();
     state.promptOpen = false;
@@ -1517,7 +1622,8 @@
     if (e.key === 'Escape' && !e.isComposing) {
       e.preventDefault();
       e.stopImmediatePropagation();
-      if (modal) closeCommitModal();
+      if (dd) closeDropdown();
+      else if (modal) closeCommitModal();
       else if (childMenu) closeChildMenu();
       else if (state.promptOpen) closePrompt();
       else api.disable();
