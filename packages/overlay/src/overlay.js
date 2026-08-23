@@ -148,7 +148,19 @@
     .prim { color: #9B9B9B; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; grid-column: 2; margin-top: -1px; }
     .dot { width: 6px; height: 6px; border-radius: 50%; background: #E8963C; display: inline-block; flex: none; }
     .tray { border-top: 1px solid #333; background: #232323; padding: 10px 12px; }
-    .tray-h { display: flex; justify-content: space-between; align-items: center; font-weight: 600; margin-bottom: 6px; }
+    .tray-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-weight: 600; min-width: 0; }
+    .tray-h .count { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+    .tray-actions { display: flex; gap: 6px; flex: none; }
+    .modal-bg { position: fixed; inset: 0; z-index: 3; pointer-events: auto; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; }
+    .modal { width: 460px; max-width: calc(100vw - 32px); max-height: calc(100vh - 32px); display: flex; flex-direction: column; background: #1E1E1E; border: 1px solid #333; border-radius: 10px; box-shadow: 0 24px 64px rgba(0,0,0,0.6); overflow: hidden; }
+    .modal-h { padding: 12px 14px 10px; font-weight: 600; font-size: 13px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .modal-h .muted { color: #9B9B9B; font-weight: 400; font-size: 11px; }
+    .modal-list { overflow: auto; padding: 0 14px; max-height: 42vh; }
+    .modal-list .chg { padding: 5px 0; }
+    .modal-body { padding: 10px 14px 14px; display: flex; flex-direction: column; gap: 8px; border-top: 1px solid #2C2C2C; }
+    .modal-foot { display: flex; align-items: center; gap: 8px; }
+    .modal-foot select.ctl { width: auto; flex: 1; min-width: 0; }
+    .modal-empty { color: #9B9B9B; padding: 8px 0 12px; }
     .tray-h .muted { color: #9B9B9B; font-weight: 400; font-size: 10.5px; }
     .chg { display: grid; grid-template-columns: 1fr auto; gap: 6px; align-items: center; padding: 3px 0; border-bottom: 1px solid #2C2C2C; min-width: 0; }
     .chg:last-of-type { border-bottom: none; }
@@ -173,7 +185,9 @@
     .kbtn.on { color: #0C8CE9; border-color: #0C8CE9; background: rgba(12,140,233,0.15); }
     .crumbs { display: none; align-items: center; gap: 1px; border-top: 1px solid #333; background: #232323; padding: 7px 10px; white-space: nowrap; overflow-x: auto; overflow-y: hidden; font-size: 11px; scrollbar-width: none; flex: none; }
     .crumbs::-webkit-scrollbar { display: none; }
-    .crumbs { position: relative; }
+    .crumbs { position: relative; cursor: grab; }
+    .crumbs.dragging { cursor: grabbing; user-select: none; }
+    .crumbs.dragging button { pointer-events: none; }
     .crumbs button.kids { color: #9B9B9B; padding: 2px 6px; }
     .crumbs button.kids:hover, .crumbs button.kids.on { color: #E8E8E8; background: #2B2B2B; }
     .menu { position: absolute; right: 8px; z-index: 2; background: #2B2B2B; border: 1px solid #3A3A3A; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); padding: 4px; min-width: 170px; max-width: 250px; max-height: 45%; overflow: auto; }
@@ -753,6 +767,21 @@
 
   let trayNoteValue = '';
   let trayScopeValue = 'auto';
+
+  const changeRow = (elx, c, onRevert) => {
+    const row = mk('chg');
+    const what = mk('what');
+    what.innerHTML = `<span class="who">${esc(elLabel(elx))}</span> <b>${esc(c.prop)}</b> ${esc(labelFor(c.from))}<span class="arrow">→</span>${esc(labelFor(c.to))}${c.to.hardcoded ? ' <span class="dot" title="hardcoded value"></span>' : ''}`;
+    what.title = `${c.from.primitive} → ${c.to.primitive}${c.to.hardcoded ? ' (hardcoded)' : ''}`;
+    const x = mk('x', 'button');
+    x.textContent = '✕';
+    x.title = 'Revert this change';
+    x.addEventListener('click', onRevert);
+    row.append(what, x);
+    return row;
+  };
+
+  // Compact footer: a change total plus actions. The list lives in the confirm modal.
   const renderTray = () => {
     const n = pendingCount();
     const committed = state.committed.reduce((k, c) => k + c.changes.length, 0);
@@ -760,36 +789,70 @@
     tray.style.display = 'block';
     tray.innerHTML = '';
     if (n) {
+      const hard = [...state.pending.values()].reduce((k, m) => k + [...m.values()].filter((c) => c.to.hardcoded).length, 0);
       const h = mk('tray-h');
-      h.innerHTML = `<span>Changes <span class="muted">· ${n}</span></span>`;
-      const discard = mk('btn sm ghost', 'button');
+      const count = mk('count', 'span');
+      count.innerHTML = `${n} change${n > 1 ? 's' : ''}${hard ? ` <span class="dot" title="hardcoded values"></span>` : ''}`;
+      count.title = hard ? `${hard} hardcoded value${hard > 1 ? 's' : ''}` : 'previewing on the page';
+      const actions = mk('tray-actions');
+      const discard = mk('btn ghost', 'button');
       discard.textContent = 'Discard';
       discard.addEventListener('click', discardAll);
-      h.append(discard);
+      const commit = mk('btn primary', 'button');
+      commit.textContent = 'Ask Claude to commit';
+      commit.addEventListener('click', openCommitModal);
+      actions.append(discard, commit);
+      h.append(count, actions);
       tray.append(h);
+    }
+    if (committed) {
+      const st = mk('tray-status');
+      st.innerHTML = `<span>${committed} sent · previewing until Claude applies</span>`;
+      const clear = document.createElement('button');
+      clear.textContent = 'Clear previews';
+      clear.addEventListener('click', clearPreviews);
+      st.append(clear);
+      if (n) st.style.marginTop = '8px';
+      tray.append(st);
+    }
+  };
+
+  let modal = null;
+  const closeCommitModal = () => { if (modal) { modal.remove(); modal = null; } };
+  const openCommitModal = () => {
+    closeCommitModal();
+    const bg = mk('modal-bg ui');
+    const box_ = mk('modal');
+    const render = () => {
+      const n = pendingCount();
+      box_.innerHTML = '';
+      const h = mk('modal-h');
+      h.innerHTML = `<span>Ask Claude to commit <span class="muted">· ${n} change${n === 1 ? '' : 's'}</span></span>`;
+      const close = mk('kbtn', 'button');
+      close.textContent = 'esc';
+      close.title = 'Cancel (Esc)';
+      close.addEventListener('click', closeCommitModal);
+      h.append(close);
+      box_.append(h);
+      const list = mk('modal-list');
+      if (!n) { const e = mk('modal-empty'); e.textContent = 'Nothing left to commit.'; list.append(e); }
       for (const [elx, map] of state.pending) {
-        for (const c of map.values()) {
-          const row = mk('chg');
-          const what = mk('what');
-          what.innerHTML = `<span class="who">${esc(elLabel(elx))}</span> <b>${esc(c.prop)}</b> ${esc(labelFor(c.from))}<span class="arrow">→</span>${esc(labelFor(c.to))}${c.to.hardcoded ? ' <span class="dot" title="hardcoded value"></span>' : ''}`;
-          what.title = `${c.from.primitive} → ${c.to.primitive}${c.to.hardcoded ? ' (hardcoded)' : ''}`;
-          const x = mk('x', 'button');
-          x.textContent = '✕';
-          x.title = 'Revert';
-          x.addEventListener('click', () => revertChange(elx, c.prop));
-          row.append(what, x);
-          tray.append(row);
-        }
+        for (const c of map.values()) list.append(changeRow(elx, c, () => { revertChange(elx, c.prop); pendingCount() ? render() : closeCommitModal(); }));
       }
-      const note = mk('ctl tray-note', 'input');
+      box_.append(list);
+      const body = mk('modal-body');
+      const note = mk('ctl', 'input');
       note.type = 'text';
-      note.placeholder = 'Note for Claude (optional)';
+      note.placeholder = 'Note for Claude (optional): intent, constraints, anything the values do not say';
       note.value = trayNoteValue;
       note.setAttribute('data-cdm-field', '');
       note.addEventListener('input', () => { trayNoteValue = note.value; });
-      note.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') commit.click(); });
-      tray.append(note);
-      const foot = mk('tray-foot');
+      note.addEventListener('keydown', (e) => {
+        e.stopPropagation();
+        if (e.key === 'Enter') { e.preventDefault(); confirm.click(); }
+        if (e.key === 'Escape') { e.preventDefault(); closeCommitModal(); }
+      });
+      const foot = mk('modal-foot');
       const scope = mk('ctl', 'select');
       scope.setAttribute('data-cdm-field', '');
       [['auto', 'Scope: auto'], ['instance', 'This instance'], ['component', 'All instances'], ['token', 'The token']].forEach(([v, l]) => {
@@ -797,22 +860,29 @@
       });
       scope.value = trayScopeValue;
       scope.addEventListener('change', () => { trayScopeValue = scope.value; });
-      const commit = mk('btn primary', 'button');
-      commit.textContent = 'Ask Claude to commit';
-      commit.addEventListener('click', () => { commitChanges(trayNoteValue.trim(), trayScopeValue); trayNoteValue = ''; });
-      foot.append(scope, commit);
-      tray.append(foot);
-    }
-    if (committed) {
-      const s = mk('tray-status');
-      s.innerHTML = `<span>${committed} change${committed > 1 ? 's' : ''} sent, previewing until Claude applies them</span>`;
-      const clear = document.createElement('button');
-      clear.textContent = 'Clear previews';
-      clear.addEventListener('click', clearPreviews);
-      s.append(clear);
-      if (n) s.style.marginTop = '8px';
-      tray.append(s);
-    }
+      scope.addEventListener('keydown', (e) => e.stopPropagation());
+      const cancel = mk('btn ghost', 'button');
+      cancel.textContent = 'Cancel';
+      cancel.addEventListener('click', closeCommitModal);
+      const confirm = mk('btn primary', 'button');
+      confirm.textContent = 'Send to Claude';
+      confirm.disabled = !n;
+      confirm.addEventListener('click', () => {
+        if (!pendingCount()) return;
+        commitChanges(trayNoteValue.trim(), trayScopeValue);
+        trayNoteValue = '';
+        closeCommitModal();
+      });
+      foot.append(scope, cancel, confirm);
+      body.append(note, foot);
+      box_.append(body);
+      setTimeout(() => note.focus(), 0);
+    };
+    render();
+    bg.addEventListener('click', (e) => { if (e.target === bg) closeCommitModal(); });
+    bg.append(box_);
+    shadow.append(bg);
+    modal = bg;
   };
 
   /* ----------------------------------------------------------- controls --- */
@@ -1196,6 +1266,34 @@
     childMenu.style.bottom = `${pr.bottom - cr.top + 4}px`;
     if (childMenuAnchor) childMenuAnchor.classList.add('on');
   };
+  // click-and-drag scrolls the strip; a real drag swallows the click that follows
+  let crumbDrag = null;
+  let swallowCrumbClick = false;
+  crumbs.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    crumbDrag = { x: e.clientX, left: crumbs.scrollLeft, moved: false, id: e.pointerId };
+  });
+  crumbs.addEventListener('pointermove', (e) => {
+    if (!crumbDrag || e.pointerId !== crumbDrag.id) return;
+    const dx = e.clientX - crumbDrag.x;
+    if (!crumbDrag.moved && Math.abs(dx) > 4) {
+      crumbDrag.moved = true;
+      crumbs.classList.add('dragging');
+      try { crumbs.setPointerCapture(e.pointerId); } catch { /* pointer already gone */ }
+    }
+    if (crumbDrag.moved) crumbs.scrollLeft = crumbDrag.left - dx;
+  });
+  const endCrumbDrag = (e) => {
+    if (!crumbDrag || (e && e.pointerId !== crumbDrag.id)) return;
+    const moved = crumbDrag.moved;
+    crumbDrag = null;
+    crumbs.classList.remove('dragging');
+    if (moved) { swallowCrumbClick = true; setTimeout(() => { swallowCrumbClick = false; }, 0); }
+  };
+  crumbs.addEventListener('pointerup', endCrumbDrag);
+  crumbs.addEventListener('pointercancel', endCrumbDrag);
+  crumbs.addEventListener('click', (e) => { if (swallowCrumbClick) { e.stopPropagation(); e.preventDefault(); } }, true);
+
   // any click outside the menu (and not on its anchor) closes it
   shadow.addEventListener('click', (e) => {
     if (!childMenu) return;
@@ -1248,6 +1346,7 @@
   /* ---------------------------------------------------------- selection --- */
 
   const closePrompt = () => {
+    closeCommitModal();
     closeChildMenu();
     state.promptOpen = false;
     state.picking = false;
@@ -1346,7 +1445,8 @@
     if (e.key === 'Escape' && !e.isComposing) {
       e.preventDefault();
       e.stopImmediatePropagation();
-      if (childMenu) closeChildMenu();
+      if (modal) closeCommitModal();
+      else if (childMenu) closeChildMenu();
       else if (state.promptOpen) closePrompt();
       else api.disable();
     }
