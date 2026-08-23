@@ -284,7 +284,7 @@
   panel.append(panelHead, panelScroll, crumbs, tray);
   const toast = mk('toast ui');
   const pill = mk('pill ui');
-  pill.innerHTML = '<span>Design Mode</span><span class="muted">click an element</span>';
+  pill.innerHTML = '<span>Design Mode</span><span class="muted" title="Click an element to select it. Alt+click selects its parent">click an element</span>';
   const pillBadge = mk('badge', 'button');
   pillBadge.style.cssText = 'background:none;border:0;padding:0;font:inherit;display:none';
   pillBadge.title = 'Unsent changes. Click to go back to them';
@@ -325,10 +325,23 @@
     const loop = () => { reposition(); if (performance.now() - t0 < 320) requestAnimationFrame(loop); };
     requestAnimationFrame(loop);
   };
-  const setDock = (side) => {
-    state.dock = side === 'left' ? 'left' : 'right';
+  const setDock = (side, fromRect = null) => {
+    const next = side === 'left' ? 'left' : 'right';
+    // glide across instead of teleporting: remember where the panel is, switch edges, then animate the difference away
+    const before = fromRect || (state.promptOpen && next !== state.dock ? panel.getBoundingClientRect() : null);
+    state.dock = next;
     try { sessionStorage.setItem('__cdm_dock', state.dock); } catch { /* fine */ }
     applyDock();
+    if (before) {
+      panel.classList.add('dragging');
+      panel.style.transform = 'none';
+      const after = panel.getBoundingClientRect();
+      const dx = before.left - after.left;
+      panel.style.transform = `translateX(${dx}px)`;
+      void panel.offsetWidth; // commit the start position
+      panel.classList.remove('dragging');
+      panel.style.transform = '';
+    }
     if (state.dockBtn) state.dockBtn.title = `Docked ${state.dock}: click to dock ${state.dock === 'left' ? 'right' : 'left'}, or drag the header`;
   };
   // drag the header to snap the panel to the other edge
@@ -348,10 +361,11 @@
   const endPanelDrag = (e) => {
     if (!panelDrag || (e && e.pointerId !== panelDrag.id)) return;
     const { moved } = panelDrag;
+    const here = panel.getBoundingClientRect();
     panelDrag = null;
     panel.classList.remove('dragging');
     panel.style.transform = '';
-    if (moved && e) setDock(e.clientX < innerWidth / 2 ? 'left' : 'right');
+    if (moved && e) setDock(e.clientX < innerWidth / 2 ? 'left' : 'right', here);
   };
   panel.addEventListener('pointerup', endPanelDrag);
   panel.addEventListener('pointercancel', endPanelDrag);
@@ -2092,7 +2106,7 @@
     state.pickBtn = pickBtn;
     const escBtn = mk('kbtn', 'button');
     escBtn.textContent = 'esc';
-    escBtn.title = 'Close (Esc)';
+    escBtn.title = 'Close the sidebar (Esc). Esc again exits Design Mode';
     escBtn.addEventListener('click', () => closePrompt());
     btns.append(dockBtn, pickBtn, escBtn);
     title.append(btns);

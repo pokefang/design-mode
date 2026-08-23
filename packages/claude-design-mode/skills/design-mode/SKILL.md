@@ -114,7 +114,8 @@ site (respect `scope`). If `to.hardcoded` is true the user typed a literal: pref
 the nearest token and say so, or use an arbitrary value (`text-[15px]`) and flag
 it as hardcoded in your reply. After your edits land and HMR has applied them,
 call `__claudeDesign.applied()` via `javascript_tool` so the runtime previews
-clear and the page shows the real code, then `notify()` a one-line summary.
+of the sent changes clear (edits the user has not sent yet stay) and the page
+shows the real code, then `notify()` a one-line summary.
 
 ## Tier 1 (a page without the plugin or the server)
 
