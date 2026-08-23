@@ -1014,12 +1014,21 @@
       reveal();
     };
     d.pickHighlighted = () => { const it = d.shown[d.hl]; if (!it) return false; onPick(it); return true; };
+    d.place = place;
     container.append(el);
     dd = d;
     d.setFilter('');
     return d;
   };
-  panelScroll.addEventListener('scroll', () => closeDropdown(), { passive: true });
+  // the field moves when the panel scrolls (focus can scroll it into view): follow it,
+  // and only let go once the field has left the visible area
+  panelScroll.addEventListener('scroll', () => {
+    if (!dd || !panel.contains(dd.el)) return;
+    const ar = dd.anchor.getBoundingClientRect();
+    const sr = panelScroll.getBoundingClientRect();
+    if (ar.bottom < sr.top || ar.top > sr.bottom) closeDropdown();
+    else dd.place();
+  }, { passive: true });
 
   const row = (label, control, opts = {}) => {
     const r = mk('row');
