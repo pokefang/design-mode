@@ -20,8 +20,8 @@ npx claude-design-mode init
 
 `init` is non-destructive. It copies the session skill into
 `.claude/skills/design-mode/`, writes a `.claude/launch.json` entry for the
-Browser pane (port detected from your Vite config or dev script), ignores
-`.design-mode/` in git, and prints the one line it will not add for you:
+Browser pane (port detected from your Vite config or dev script), and prints
+the one line it will not add for you:
 
 ```js
 // vite.config.js
@@ -108,7 +108,9 @@ again exits Design Mode, asking first if anything is unsent.
    the app's vocabulary: a `--spacing` base unit, the app's own spacing tokens,
    or plain px when there is nothing else. Literals that match no token are
    flagged hardcoded.
-3. Payloads land in `.design-mode/queue/*.json`. `claude-design-mode wait`
+3. Payloads land in a per-project queue outside the repo
+   (`~/.claude-design-mode/<project>-<hash>/queue`; the health route reports the
+   absolute path). `claude-design-mode wait`
    blocks on that directory; the session runs it in the background and wakes
    the moment something lands, resolves the source (stamp first, React fiber
    stack second, repo search last), applies a targeted edit, verifies via

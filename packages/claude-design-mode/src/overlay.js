@@ -987,6 +987,16 @@
     }, 5000);
   };
 
+  // Is a Claude session actually listening? The wake watcher heartbeats the
+  // server; asking costs one same-origin GET and lets the page tell the truth.
+  const sessionArmed = async () => {
+    try {
+      const r = await fetch(cfg.endpoint.replace(/\/selection$/, '/health'));
+      if (!r.ok) return null;
+      return !!(await r.json()).armed;
+    } catch { return null; }
+  };
+
   const post = async (payload) => {
     payload.attempts = (payload.attempts || 0) + 1;
     try {
@@ -997,8 +1007,10 @@
       });
       if (res.ok) {
         removeFromQueue(payload.seq);
-        showToast('Sent to Claude');
-        return true;
+        const armed = await sessionArmed();
+        if (armed === false) showToast('Delivered, but no Claude session is listening yet. In your Claude Code session, say "start design mode" and this will be applied.', 9000);
+        else showToast('Sent to Claude');
+        return armed === false ? 'waiting' : 'sent';
       }
       if (res.status === 403) {
         payload.failed403 = true;
@@ -1020,13 +1032,14 @@
     scheduleRetry();
     return false;
   };
+  // post() resolves 'sent' | 'waiting' | false
 
   const deliver = async (payload) => {
     state.queue.push(payload);
     persist();
     // Tiny signal only: console truncates silently above ~4KB, so never the payload.
     console.log(`[design-mode] ${payload.kind} #${payload.seq} ready${payload.source ? ` (source via ${payload.source.via})` : ''}`);
-    if (cfg.endpoint) return (await post(payload)) ? 'sent' : 'failed';
+    if (cfg.endpoint) return (await post(payload)) || 'failed';
     if (cfg.wakeUrl) {
       try { fetch(`${cfg.wakeUrl}?token=${encodeURIComponent(cfg.token || '')}`, { mode: 'no-cors' }); } catch { /* not armed */ }
     }
@@ -1250,7 +1263,10 @@
     }
     if (committed) {
       const statuses = new Set(state.committed.map((c) => (c.entry ? c.entry.status : 'sent')));
-      const word = statuses.has('sending') ? 'Sending to Claude' : statuses.has('failed') ? 'Not sent (see message)' : statuses.has('queued') ? 'Queued for Claude' : 'Sent to Claude';
+      const word = statuses.has('sending') ? 'Sending to Claude'
+        : statuses.has('failed') ? 'Not sent (see message)'
+        : statuses.has('waiting') ? 'Delivered · no session listening yet'
+        : statuses.has('queued') ? 'Queued for Claude' : 'Sent to Claude';
       const st = mk('tray-status');
       st.innerHTML = `<span title="Previews stay on the page until Claude applies the edits and the page reloads">${word} · ${committed} previewing</span>`;
       const clear = document.createElement('button');
@@ -2615,7 +2631,7 @@
   /* ---------------------------------------------------------------- api --- */
 
   const api = {
-    version: '0.4.0',
+    version: '0.5.0',
     bootId: Math.random().toString(36).slice(2, 10),
     config: cfg,
     heartbeat: Date.now(),

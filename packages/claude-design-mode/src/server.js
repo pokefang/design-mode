@@ -1,5 +1,6 @@
-import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -13,6 +14,30 @@ export const MAX_BODY = 512 * 1024;
 export const overlayPath = () => fileURLToPath(new URL('./overlay.js', import.meta.url));
 export const skillDir = () => fileURLToPath(new URL('../skills/design-mode/', import.meta.url));
 export const newToken = () => randomBytes(16).toString('hex');
+
+/**
+ * Per-project queue location OUTSIDE the repo: nothing lands in the user's
+ * working tree. Deterministic from the project root's absolute path, so the
+ * dev server, the standalone server, and `claude-design-mode wait` (run from
+ * the same root) all compute the same directory with no coordination.
+ */
+export const defaultQueueDir = (root) => {
+  const abs = path.resolve(root || process.cwd());
+  const slug = path.basename(abs).replace(/[^a-zA-Z0-9._-]/g, '').slice(0, 32) || 'app';
+  const hash = createHash('sha256').update(abs).digest('hex').slice(0, 8);
+  return path.join(os.homedir(), '.claude-design-mode', `${slug}-${hash}`, 'queue');
+};
+
+// The wake watcher refreshes <queueDir>/../armed.json while it is listening;
+// a fresh stamp means a Claude session will act on payloads immediately.
+export const ARMED_FRESH_MS = 30 * 1000;
+export const armedFile = (queueDir) => path.join(queueDir, '..', 'armed.json');
+export const isArmed = (queueDir) => {
+  try {
+    const a = JSON.parse(fs.readFileSync(armedFile(queueDir), 'utf8'));
+    return Date.now() - a.ts < ARMED_FRESH_MS;
+  } catch { return false; }
+};
 
 /**
  * The Design Mode HTTP surface, framework-free so the Vite plugin and the
@@ -87,7 +112,9 @@ export function createHandler(opts) {
         ? fs.readdirSync(queueDir).filter((f) => f.endsWith('.json')).length
         : 0;
       res.setHeader('content-type', 'application/json');
-      res.end(JSON.stringify({ ok: true, pending, queueDir }));
+      res.setHeader('cache-control', 'no-store');
+      corsHeaders(req, res); // the overlay reads `armed` cross-origin in standalone mode
+      res.end(JSON.stringify({ ok: true, pending, queueDir, armed: isArmed(queueDir) }));
       return true;
     }
 

@@ -1,6 +1,6 @@
 import http from 'node:http';
 import path from 'node:path';
-import { createHandler, newToken, configScript, OVERLAY_ROUTE, SELECTION_ROUTE } from './server.js';
+import { createHandler, newToken, configScript, defaultQueueDir, OVERLAY_ROUTE, SELECTION_ROUTE } from './server.js';
 
 const BOOT_ROUTE = '/__design-mode/boot.js';
 
@@ -26,7 +26,7 @@ const BOOT_ROUTE = '/__design-mode/boot.js';
 export function serve({ port = 3850, apps = [], queueDir, root = process.cwd(), log = console.log } = {}) {
   const token = newToken();
   const apps_ = apps.map((a) => a.replace(/\/$/, ''));
-  const dir = path.resolve(root, queueDir || path.join('.design-mode', 'queue'));
+  const dir = queueDir ? path.resolve(root, queueDir) : defaultQueueDir(root);
   const handle = createHandler({ token, queueDir: dir, root, allowOrigins: apps_, cors: true, log });
 
   const referrerOrigin = (req) => {

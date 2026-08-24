@@ -9,10 +9,20 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { defaultQueueDir, armedFile } from './server.js';
 
 export function wait({ dir, timeoutMin = 15, out = console.log, err = console.error, exit = process.exit } = {}) {
-  const queue = path.resolve(dir || path.join(process.cwd(), '.design-mode', 'queue'));
+  const queue = dir ? path.resolve(dir) : defaultQueueDir(process.cwd());
   fs.mkdirSync(queue, { recursive: true });
+
+  // heartbeat: while this watcher lives, the overlay can honestly say
+  // "Sent to Claude" (the server's health route reports armed: true)
+  const beat = () => {
+    try { fs.writeFileSync(armedFile(queue), JSON.stringify({ pid: process.pid, ts: Date.now() })); } catch { /* fine */ }
+  };
+  beat();
+  const heart = setInterval(beat, 10 * 1000);
+  heart.unref?.();
 
   const pending = () => {
     try {

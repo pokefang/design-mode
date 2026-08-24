@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { transformSync } from '@babel/core';
 import stampPlugin from './stamp.js';
-import { createHandler, newToken, serializeTokenHints, configScript, OVERLAY_ROUTE, SELECTION_ROUTE } from './server.js';
+import { createHandler, newToken, serializeTokenHints, configScript, defaultQueueDir, OVERLAY_ROUTE, SELECTION_ROUTE } from './server.js';
 
 /**
  * Design Mode Vite plugin. Dev-serve only; never touches production builds.
@@ -66,7 +66,9 @@ export default function designMode(options = {}) {
 
     configResolved(config) {
       root = config.root;
-      queueDir = path.resolve(root, options.queueDir || path.join('.design-mode', 'queue'));
+      // default lives OUTSIDE the repo (~/.claude-design-mode/<project>-<hash>/queue):
+      // nothing ever lands in the user's working tree
+      queueDir = options.queueDir ? path.resolve(root, options.queueDir) : defaultQueueDir(root);
     },
 
     transform(code, id) {
@@ -89,7 +91,7 @@ export default function designMode(options = {}) {
         log: (msg) => server.config.logger.info(msg, { timestamp: true }),
       });
       server.middlewares.use((req, res, next) => { if (!handle(req, res)) next(); });
-      server.config.logger.info(`[design-mode] queue: ${path.relative(root, queueDir) || '.'}  (toggle with Cmd+D in the page)`, { timestamp: true });
+      server.config.logger.info(`[design-mode] queue: ${queueDir}  (toggle with Cmd+D / Ctrl+D in the page)`, { timestamp: true });
     },
   };
 }

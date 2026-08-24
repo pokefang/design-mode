@@ -11,8 +11,8 @@ npx claude-design-mode init
 ```
 
 `init` copies the session skill into `.claude/skills/design-mode/`, writes a
-`.claude/launch.json` entry for the Browser pane, ignores `.design-mode/`, and
-prints the one line to add to your Vite config:
+`.claude/launch.json` entry for the Browser pane, and prints the one line to
+add to your Vite config:
 
 ```js
 import designMode from 'claude-design-mode/vite'
@@ -49,6 +49,11 @@ patterns when naming conventions and value types are not enough.
 
 ## Security
 
+Selections travel through a per-project queue outside your repo
+(`~/.claude-design-mode/<project>-<hash>/queue`); the armed session applies
+them the moment they land and the page says honestly whether a session is
+listening. Nothing is written into your working tree.
+
 Dev-serve only (never in builds, never under Vitest). The selection endpoint
 requires a per-boot token in a custom header, an allowed Origin, and a local
 Host; constant-time comparison, JSON only, 512KB cap. Page content in payloads
@@ -58,7 +63,7 @@ rotates on every dev-server restart; if the page stops delivering, reload it.
 ## Uninstall
 
 Remove the plugin line from your Vite config, `npm rm claude-design-mode`, and
-delete `.claude/skills/design-mode/` and the `.design-mode/` queue dir. Nothing
-else is touched.
+delete `.claude/skills/design-mode/` and `~/.claude-design-mode/`. Nothing else
+is touched.
 
 Full docs and source: https://github.com/pokefang/design-mode

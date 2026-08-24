@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { overlayPath, skillDir } from '../src/server.js';
+import { overlayPath, skillDir, defaultQueueDir } from '../src/server.js';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
@@ -22,9 +22,10 @@ const HELP = `claude-design-mode ${pkg.version}
 
   init [--port N] [--force]   set up this project: copies the Claude Code skill into
                               .claude/skills/design-mode, adds a .claude/launch.json entry,
-                              ignores .design-mode/, and prints the one config line to add
+                              and prints the one config line to add
   wait [queueDir] [--timeout M]
-                              block until a selection lands in the queue (agent wake watcher)
+                              block until a selection lands in the queue (agent wake watcher);
+                              the default queue lives outside the repo, keyed to this project
   serve --app <origin> [--port 3850] [--queue dir]
                               standalone server for non-Vite apps (one <script> tag)
   overlay-path                print the overlay's absolute path (for manual injection)
@@ -88,15 +89,6 @@ const init = () => {
     done.push(`.claude/launch.json (name "${projectName()}", port ${port}${port === 5173 ? ', Vite default; rerun with --port N if yours differs' : ''})`);
   }
 
-  // 3. keep the queue out of git
-  const gi = path.join(cwd, '.gitignore');
-  const giText = exists(gi) ? read(gi) : '';
-  if (/^\.design-mode\/?$/m.test(giText)) skipped.push('.gitignore already ignores .design-mode/');
-  else {
-    fs.writeFileSync(gi, giText + (giText && !giText.endsWith('\n') ? '\n' : '') + '.design-mode/\n');
-    done.push('.gitignore (+ .design-mode/)');
-  }
-
   say(`claude-design-mode init\n`);
   for (const d of done) say(`  wrote    ${d}`);
   for (const s of skipped) say(`  skipped  ${s}`);
@@ -116,6 +108,7 @@ const init = () => {
     say('\n(referrerpolicy="origin" matters: it is how the server knows the request is from your app,');
     say('even over https or with a strict referrer policy.)');
   }
+  say(`\nSelections land outside your repo, in ${defaultQueueDir(cwd)}`);
   say('\nThen, in a Claude Code session in this project, say "start design mode".');
   say('In the page: Cmd+D (Ctrl+D on Windows and Linux) toggles the inspector; click anything, describe the change.');
 };

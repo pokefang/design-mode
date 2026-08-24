@@ -19,7 +19,7 @@ test('init is non-destructive and idempotent', () => {
   assert.match(out, /launch\.json \(name "my-app", port 3456\)/);
   assert.match(out, /claude-design-mode\/vite/);
   assert.ok(fs.existsSync(path.join(dir, '.claude/skills/design-mode/SKILL.md')));
-  assert.equal(fs.readFileSync(path.join(dir, '.gitignore'), 'utf8'), 'node_modules\n.design-mode/\n');
+  assert.equal(fs.readFileSync(path.join(dir, '.gitignore'), 'utf8'), 'node_modules\n'); // untouched
   const launch = JSON.parse(fs.readFileSync(path.join(dir, '.claude/launch.json'), 'utf8'));
   assert.equal(launch.configurations[0].port, 3456);
   // second run: everything skipped, nothing rewritten
@@ -27,7 +27,17 @@ test('init is non-destructive and idempotent', () => {
   const again = run(dir, 'init');
   assert.match(again, /skipped\s+\.claude\/skills\/design-mode\/SKILL\.md exists/);
   assert.equal(fs.readFileSync(path.join(dir, '.claude/skills/design-mode/SKILL.md'), 'utf8'), 'custom');
-  assert.equal(fs.readFileSync(path.join(dir, '.gitignore'), 'utf8'), 'node_modules\n.design-mode/\n');
+  assert.equal(fs.readFileSync(path.join(dir, '.gitignore'), 'utf8'), 'node_modules\n');
+});
+
+test('default queue dir lives outside the project, keyed to its path', async () => {
+  const { defaultQueueDir } = await import('../src/server.js');
+  const a = defaultQueueDir('/tmp/proj-a');
+  const b = defaultQueueDir('/tmp/proj-b');
+  assert.ok(a.startsWith(os.homedir()));
+  assert.ok(!a.includes('/tmp/proj-a'));
+  assert.notEqual(a, b);
+  assert.equal(a, defaultQueueDir('/tmp/proj-a')); // deterministic
 });
 
 test('init without vite points at the standalone server', () => {
