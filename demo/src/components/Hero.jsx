@@ -3,7 +3,7 @@ import Button from './Button.jsx'
 export default function Hero() {
   return (
     <section className="mx-auto max-w-3xl px-8 py-24 text-center">
-      <h1 className="text-6xl font-black tracking-tight text-slate-900">
+      <h1 className="text-xl font-black tracking-tight text-slate-900">
         Notes that organize themselves
       </h1>
       <p className="mx-auto mt-5 max-w-xl text-lg text-slate-600">
