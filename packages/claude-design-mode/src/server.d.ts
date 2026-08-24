@@ -12,6 +12,19 @@ export declare function skillDir(): string;
 /** A fresh per-boot token for the selection endpoint. */
 export declare function newToken(): string;
 
+/**
+ * The default queue for a project: a deterministic per-project dir under
+ * `~/.claude-design-mode/`, keyed to the project root's absolute path, so the
+ * server and the wake watcher agree without coordination.
+ */
+export declare function defaultQueueDir(root?: string): string;
+/** How recently `armed.json` must have been touched to count as armed. */
+export declare const ARMED_FRESH_MS: number;
+/** Path of the armed-marker file the wake watcher heartbeats for a queue dir. */
+export declare function armedFile(queueDir: string): string;
+/** Whether a wake watcher is currently listening on this queue. */
+export declare function isArmed(queueDir: string): boolean;
+
 export interface CreateHandlerOptions {
   /** Per-boot secret the overlay sends back (see `newToken`). */
   token: string;

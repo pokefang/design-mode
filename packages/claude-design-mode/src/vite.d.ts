@@ -1,7 +1,7 @@
 import type { Plugin } from 'vite';
 
 export interface DesignModeOptions {
-  /** Where selection payloads are written. Default: `<vite-root>/.design-mode/queue`. */
+  /** Where selection payloads are written. Default: a per-project dir under `~/.claude-design-mode/`, outside the repo. */
   queueDir?: string;
   /** Extra Host names to accept besides localhost/127.0.0.1/::1/*.localhost. */
   allowedHosts?: string[];
