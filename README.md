@@ -88,9 +88,11 @@ your app actually defines, dragging a value scrubs it, double-clicking resets
 it; a dot beside a label means the property has a pending change, a small
 triangle means the value is a literal with no token behind it. Every change
 previews instantly; the change count at the bottom opens the review list, and
-"Ask Claude to commit" ships it with an optional note. Esc closes the sidebar
-(the pill then shows how many changes are unsent; click it to go back), Esc
-again exits Design Mode, asking first if anything is unsent.
+"Ask Claude to commit" ships it with an optional note. While Design Mode is on,
+a status bar sits in its own strip across the top of the page (it never covers
+your app, and it steps aside for the sidebar) showing how many changes are
+unsent; click that count to go back to them. Esc closes the sidebar, Esc again
+exits Design Mode, asking first if anything is unsent.
 
 ## How it works
 

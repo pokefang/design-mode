@@ -36,6 +36,10 @@ the loop.
    truthfully whether anyone is listening, so keep one armed whenever Design
    Mode is on.
 4. Tell the user Design Mode is armed and how to toggle it (Cmd+D in the app page, Ctrl+D on Windows and Linux).
+5. Keep the watcher invisible after that: re-arm silently and never narrate its
+   lifecycle (armed, asleep, timed out, re-armed) in the chat. It is plumbing.
+   Mention it only when Design Mode starts, ends, or breaks; every other reply
+   is about the user's edits.
 
 ## Per payload (each time the watcher wakes you)
 

@@ -1,7 +1,7 @@
 {
   "name": "design-mode",
   "displayName": "Design Mode",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Click-to-edit for apps you build with Claude Code: an in-page inspector that hands the session the exact source location and a list of token-level design edits.",
   "author": {
     "name": "Billy Mangino"

@@ -134,8 +134,6 @@
     .tray.empty { color: #6E6E6E; font-size: 10.5px; padding: 7px 12px; }
     .count-btn { background: none; border: 0; padding: 0; color: inherit; font: inherit; font-weight: 600; cursor: pointer; white-space: nowrap; }
     .count-btn:hover { color: #8FB2FF; }
-    .pill .badge { color: #8FB2FF; font-weight: 600; }
-    .pill .badge:hover { text-decoration: underline; cursor: pointer; }
     .p-title { font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 6px; min-width: 0; }
     .p-title .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .p-title .tag { color: #9B9B9B; font-weight: 400; font-size: 11px; }
@@ -248,8 +246,11 @@
     .tray-status { color: #9B9B9B; font-size: 10.5px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
     .tray-status button { background: none; border: none; color: #8FB2FF; padding: 0; font-size: 10.5px; }
     .toast { position: fixed; display: none; pointer-events: none; bottom: 14px; left: 14px; background: #1E1E1E; border: 1px solid #333; border-radius: 8px; padding: 8px 12px; max-width: 46vw; }
-    .pill { position: fixed; display: none; pointer-events: auto; top: 12px; right: 12px; align-items: center; gap: 10px; background: #1E1E1E; border: 1px solid #333; border-radius: 99px; padding: 5px 6px 5px 12px; box-shadow: 0 6px 24px rgba(0,0,0,0.35); font-weight: 600; }
-    .pill .muted { color: #9B9B9B; font-weight: 400; }
+    .bar { position: fixed; display: none; pointer-events: auto; top: 0; left: 0; right: 0; height: 34px; align-items: center; gap: 10px; background: #1E1E1E; border-bottom: 1px solid #333; padding: 0 10px 0 14px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); font-weight: 600; transition: left .22s ease, right .22s ease; }
+    .bar .muted { color: #9B9B9B; font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+    .bar .spacer { flex: 1; min-width: 0; }
+    .bar .badge { color: #8FB2FF; font-weight: 600; }
+    .bar .badge:hover { text-decoration: underline; cursor: pointer; }
     .hdr-btns { margin-left: auto; display: flex; align-items: center; gap: 4px; flex: none; }
     .kbtn { flex: none; height: 22px; display: inline-flex; align-items: center; font: 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.02em; padding: 0 6px; border-radius: 4px; border: 1px solid #3A3A3A; border-bottom-width: 2px; background: #2B2B2B; color: #9B9B9B; }
     .kbtn:hover { color: #E8E8E8; border-color: #4A4A4A; }
@@ -287,40 +288,48 @@
   const crumbs = mk('crumbs ui');
   panel.append(panelHead, panelScroll, crumbs, tray);
   const toast = mk('toast ui');
-  const pill = mk('pill ui');
-  pill.innerHTML = '<span>Design Mode</span><span class="muted" title="Click an element to select it. Alt+click selects its parent">click an element</span>';
-  const pillBadge = mk('badge', 'button');
-  pillBadge.style.cssText = 'background:none;border:0;padding:0;font:inherit;display:none';
-  pillBadge.title = 'Unsent changes. Click to go back to them';
-  pillBadge.addEventListener('click', () => {
+  const bar = mk('bar ui');
+  bar.innerHTML = '<span>Design Mode</span><span class="muted" title="Click an element to select it. Alt+click selects its parent">click an element</span><span class="spacer"></span>';
+  const barBadge = mk('badge', 'button');
+  barBadge.style.cssText = 'background:none;border:0;padding:0;font:inherit;display:none';
+  barBadge.title = 'Unsent changes. Click to go back to them';
+  barBadge.addEventListener('click', () => {
     const first = [...state.pending.keys()].find((elx) => elx.isConnected && state.pending.get(elx).size);
     if (first) { openPrompt(first); first.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
   });
-  pill.append(pillBadge);
-  const pillEsc = mk('kbtn', 'button');
-  pillEsc.textContent = 'esc';
-  pillEsc.title = 'Exit Design Mode (Esc)';
-  pillEsc.addEventListener('click', () => requestDisable());
-  pill.append(pillEsc);
-  const syncPill = () => {
-    pill.style.display = state.active && !state.promptOpen ? 'flex' : 'none';
+  bar.append(barBadge);
+  const barEsc = mk('kbtn', 'button');
+  barEsc.textContent = 'esc';
+  barEsc.title = 'Exit Design Mode (Esc)';
+  barEsc.addEventListener('click', () => requestDisable());
+  bar.append(barEsc);
+  const syncBar = () => {
+    bar.style.display = state.active ? 'flex' : 'none';
     const n = pendingCount();
-    pillBadge.style.display = n ? '' : 'none';
-    pillBadge.textContent = n ? `${n} unsent` : '';
+    barBadge.style.display = n ? '' : 'none';
+    barBadge.textContent = n ? `${n} unsent` : '';
   };
-  shadow.append(hi, hiLabel, ring, panel, toast, pill);
+  shadow.append(hi, hiLabel, ring, panel, toast, bar);
 
   // Docking: the panel takes real space by pushing the page with an html margin
   // on its side (animated together with the slide-in), so nothing hides under it.
   const DOCK_W = 300;
+  const BAR_H = 34;
   const htmlStyle = document.documentElement.style;
   let savedHtml = null;
   const applyDock = () => {
     const open = state.promptOpen;
-    if (savedHtml === null) savedHtml = { l: htmlStyle.marginLeft, r: htmlStyle.marginRight, t: htmlStyle.transition };
+    if (savedHtml === null) savedHtml = { l: htmlStyle.marginLeft, r: htmlStyle.marginRight, top: htmlStyle.marginTop, t: htmlStyle.transition };
+    // margin-top stays out of this list on purpose: transitioning the root element's
+    // top margin makes Chrome drop the value entirely (computed stays 0), so the bar's
+    // strip is applied instantly while the dock margins still glide
     htmlStyle.transition = open ? 'margin-left .22s ease, margin-right .22s ease' : savedHtml.t;
     htmlStyle.marginLeft = open && state.dock === 'left' ? `${DOCK_W}px` : savedHtml.l;
     htmlStyle.marginRight = open && state.dock === 'right' ? `${DOCK_W}px` : savedHtml.r;
+    // the status bar keeps its own strip of the page instead of floating over the app
+    htmlStyle.marginTop = state.active ? `${BAR_H}px` : savedHtml.top;
+    bar.style.left = open && state.dock === 'left' ? `${DOCK_W}px` : '0px';
+    bar.style.right = open && state.dock === 'right' ? `${DOCK_W}px` : '0px';
     panel.classList.toggle('left', state.dock === 'left');
     panel.classList.toggle('open', open);
     toast.style.left = open && state.dock === 'left' ? `${DOCK_W + 14}px` : '14px';
@@ -1241,7 +1250,7 @@
     tray.innerHTML = '';
     tray.style.display = 'block';
     tray.classList.toggle('empty', !n && !committed);
-    if (!n && !committed) { tray.textContent = 'No changes yet'; syncPill(); return; }
+    if (!n && !committed) { tray.textContent = 'No changes yet'; syncBar(); return; }
     if (n) {
       const hard = [...state.pending.values()].reduce((k, m) => k + [...m.values()].filter((c) => c.to.hardcoded).length, 0);
       const stale = [...state.pending.keys()].filter((elx) => !elx.isConnected).length;
@@ -1277,7 +1286,7 @@
       if (n) st.style.marginTop = '8px';
       tray.append(st);
     }
-    syncPill();
+    syncBar();
     // the tray just grew over the bottom of the panel: keep the field being edited in view
     if (wasEmpty && shadow.activeElement && panelScroll.contains(shadow.activeElement)) {
       const a = shadow.activeElement;
@@ -2410,7 +2419,7 @@
     state.trailLeaf = null;
     watchSelected(null);
     applyDock();
-    syncPill();
+    syncBar();
     syncCursor();
     ring.style.display = 'none';
     crumbs.style.display = 'none';
@@ -2425,7 +2434,7 @@
     box(target, ring, 1);
     renderPanel(target, keepScroll);
     watchSelected(target);
-    syncPill();
+    syncBar();
     syncCursor();
   };
 
@@ -2486,7 +2495,7 @@
     if (inspecting() && state.hoverEl && state.hoverEl.isConnected) {
       const r = box(state.hoverEl, hi);
       hiLabel.style.left = `${Math.max(4, r.left)}px`;
-      hiLabel.style.top = `${Math.max(4, r.top - 24)}px`;
+      hiLabel.style.top = `${Math.max(state.active ? BAR_H + 4 : 4, r.top - 24)}px`;
     }
   };
   const onScrollOrResize = () => {
@@ -2544,7 +2553,7 @@
     hiLabel.textContent = `${chain[0] ? chain[0] + ' · ' : ''}${t.tagName.toLowerCase()}${t.classList[0] ? '.' + t.classList[0] : ''} · ${Math.round(r.width)}×${Math.round(r.height)}`;
     hiLabel.style.display = 'block';
     hiLabel.style.left = `${Math.max(4, r.left)}px`;
-    hiLabel.style.top = `${Math.max(4, r.top - 24)}px`;
+    hiLabel.style.top = `${Math.max(state.active ? BAR_H + 4 : 4, r.top - 24)}px`;
   };
 
   const SUPPRESSED = ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'];
@@ -2608,7 +2617,7 @@
     }
   };
 
-  // The last Esc (or the pill's esc, or the hotkey) with unsent edits on the page: ask before dropping them
+  // The last Esc (or the bar's esc, or the hotkey) with unsent edits on the page: ask before dropping them
   const requestDisable = () => {
     const n = pendingCount();
     if (!n) { api.disable(); return; }
@@ -2631,7 +2640,7 @@
   /* ---------------------------------------------------------------- api --- */
 
   const api = {
-    version: '0.5.0',
+    version: '0.6.0',
     bootId: Math.random().toString(36).slice(2, 10),
     config: cfg,
     heartbeat: Date.now(),
@@ -2639,7 +2648,8 @@
     enable() {
       ensureMounted();
       state.active = true;
-      syncPill();
+      syncBar();
+      applyDock(); // the bar claims its strip the moment Design Mode turns on
       syncCursor();
     },
     disable() {
@@ -2648,10 +2658,10 @@
       state.active = false;
       state.picking = false;
       state.hoverEl = null;
-      closePrompt();
+      closePrompt(); // gives the page its top strip back too
       hi.style.display = 'none';
       hiLabel.style.display = 'none';
-      syncPill();
+      syncBar();
       syncCursor();
     },
     toggle() { state.active ? requestDisable() : api.enable(); },
