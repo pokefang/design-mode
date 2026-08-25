@@ -44,6 +44,9 @@
     window.__CDM_CONFIG || {}
   );
 
+  const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || '');
+  const PASTE_KEY = IS_MAC ? '\u2318V' : 'Ctrl+V';
+
   const STORAGE_KEY = '__cdm_queue_v1';
   const MAX_HTML = 2000;
   const MAX_TEXT = 400;
@@ -60,6 +63,9 @@
     trailLeaf: null,      // deepest element of the breadcrumb trail (children stay visible)
     dock: (() => { try { return sessionStorage.getItem('__cdm_dock') === 'left' ? 'left' : 'right'; } catch { return 'right'; } })(),
     promptExpanded: false,
+    armed: false,        // a session is already listening, so submit sends instead of copying
+    copied: false,       // the last submit went to the clipboard and is waiting to be pasted
+    lastPrompt: '',
     draft: '',
     draftScope: 'auto',
     hoverEl: null,
@@ -250,6 +256,8 @@
     .bar .muted { color: #9B9B9B; font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
     .bar .spacer { flex: 1; min-width: 0; }
     .bar .btn { flex: none; }
+    .bar .paste { flex: none; height: 22px; padding: 0 9px; border-radius: 99px; border: 1px solid #3A6EA5; background: rgba(12,140,233,0.15); color: #8FB2FF; font: inherit; font-weight: 600; }
+    .bar .paste:hover { border-color: #4F8CC9; color: #B9D2FF; }
     .hdr-btns { margin-left: auto; display: flex; align-items: center; gap: 4px; flex: none; }
     .kbtn { flex: none; height: 22px; display: inline-flex; align-items: center; font: 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.02em; padding: 0 6px; border-radius: 4px; border: 1px solid #3A3A3A; border-bottom-width: 2px; background: #2B2B2B; color: #9B9B9B; }
     .kbtn:hover { color: #E8E8E8; border-color: #4A4A4A; }
@@ -296,6 +304,16 @@
   barSend.title = 'Review the unsent changes, add a note, and send them to Claude';
   barSend.addEventListener('click', () => openCommitModal());
   bar.append(barSend);
+  // Stays put after a copy, because the next thing the user does is leave this page.
+  const barPaste = mk('paste', 'button');
+  barPaste.style.display = 'none';
+  barPaste.textContent = `Paste in Claude (${PASTE_KEY})`;
+  barPaste.title = 'The prompt is on your clipboard. Click to copy it again';
+  barPaste.addEventListener('click', () => {
+    const last = state.lastPrompt;
+    if (last && copyForAgent(last)) showToast('Copied again.');
+  });
+  bar.append(barPaste);
   const barEsc = mk('kbtn', 'button');
   barEsc.textContent = 'esc';
   barEsc.title = 'Exit Design Mode (Esc)';
@@ -304,8 +322,15 @@
   const syncBar = () => {
     bar.style.display = state.active ? 'flex' : 'none';
     const n = pendingCount();
+    if (n) state.copied = false; // a fresh edit supersedes whatever is on the clipboard
     barSend.style.display = n ? '' : 'none';
-    barSend.textContent = n ? `Send ${n} change${n > 1 ? 's' : ''} to Claude` : '';
+    // the label promises exactly what the click will do, before it is clicked
+    barSend.textContent = n ? `${state.armed ? 'Send' : 'Copy'} ${n} change${n > 1 ? 's' : ''} ${state.armed ? 'to' : 'for'} Claude` : '';
+    barSend.title = state.armed
+      ? 'Review the changes, add a note, and send them to the Claude session that is listening'
+      : 'Review the changes, add a note, and copy them as a prompt to paste into Claude';
+    // a toast is gone in three seconds, and pasting means leaving the page: the bar holds the reminder
+    barPaste.style.display = !n && state.copied ? '' : 'none';
   };
   shadow.append(hi, hiLabel, ring, panel, toast, bar);
 
@@ -980,6 +1005,66 @@
 
   /* ----------------------------------------------------------- delivery --- */
 
+
+
+  // What the user pastes into their agent: the fewest words that still point at an
+  // exact line and an exact property. No preamble, no JSON, ASCII arrows so it
+  // survives a terminal.
+  const promptText = (payload) => {
+    const scopeLine = { instance: 'Scope: this element only.', component: 'Scope: the shared component.', token: 'Scope: the design token.' }[payload.scope] || '';
+    const place = (t) => {
+      const name = (t.componentChain && t.componentChain[0]) || t.tag;
+      const s = t.source || {};
+      if (!s.file) return `${name} (${t.selector || t.tag})`;
+      return `${name} (${s.file}:${s.line}${s.via === 'stamp-ancestor' ? ', or just inside it' : ''})`;
+    };
+    const lines = [];
+    if (payload.kind === 'design-edits') {
+      lines.push('Update the source:', '');
+      for (const t of payload.targets || []) {
+        lines.push(place(t));
+        for (const e of t.edits) lines.push(`- ${e.prop}: ${labelFor(e.from)} -> ${labelFor(e.to)}${e.to.hardcoded ? ' (literal)' : ''}`);
+        lines.push('');
+      }
+      if (payload.note) lines.push(`Note: ${payload.note}`);
+      if (scopeLine) lines.push(scopeLine);
+    } else {
+      lines.push(payload.instruction, '', place(payload));
+      if (scopeLine) lines.push(scopeLine);
+    }
+    return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  };
+
+  // Called inside the click that submits, so the clipboard write still has its
+  // user gesture. Returns whether the copy was at least started.
+  const copyForAgent = (text) => {
+    const legacy = () => {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.cssText = 'position:fixed;top:-1000px;opacity:0';
+        (document.body || document.documentElement).append(ta);
+        ta.select();
+        const ok = document.execCommand('copy');
+        ta.remove();
+        return ok;
+      } catch { return false; }
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      // the write can still be refused (no user activation, permissions policy):
+      // say so instead of leaving a "Copied" that never happened
+      navigator.clipboard.writeText(text).catch(() => {
+        if (legacy()) return;
+        state.copied = false;
+        syncBar();
+        showToast('Could not reach the clipboard. The change is still listed here, so try the button again.', 8000);
+      });
+      return true;
+    }
+    return legacy();
+  };
+
   const removeFromQueue = (seq) => {
     state.queue = state.queue.filter((p) => p.seq !== seq);
     persist();
@@ -994,14 +1079,30 @@
     }, 5000);
   };
 
-  // Is a Claude session actually listening? The wake watcher heartbeats the
-  // server; asking costs one same-origin GET and lets the page tell the truth.
+  // Is a Claude session already listening? Nobody has to run anything for Design
+  // Mode to work: submitting copies a prompt to paste. This check exists only so
+  // that when a session IS listening the submit goes straight through instead,
+  // which is why nothing in the UI ever mentions it.
   const sessionArmed = async () => {
+    if (!cfg.endpoint) return null;
     try {
       const r = await fetch(cfg.endpoint.replace(/\/selection$/, '/health'));
       if (!r.ok) return null;
       return !!(await r.json()).armed;
     } catch { return null; }
+  };
+  let armedTimer = null;
+  const pollArmed = async () => {
+    const was = state.armed;
+    state.armed = (await sessionArmed()) === true;
+    if (state.armed !== was) syncBar();
+  };
+  const watchArmed = (on) => {
+    clearInterval(armedTimer);
+    armedTimer = null;
+    if (!on || !cfg.endpoint) { state.armed = false; return; }
+    pollArmed();
+    armedTimer = setInterval(pollArmed, 10000);
   };
 
   const post = async (payload) => {
@@ -1014,44 +1115,50 @@
       });
       if (res.ok) {
         removeFromQueue(payload.seq);
-        const armed = await sessionArmed();
-        if (armed === false) showToast('Delivered, but no Claude session is listening yet. In your Claude Code session, say "start design mode" and this will be applied.', 9000);
-        else showToast('Sent to Claude');
-        return armed === false ? 'waiting' : 'sent';
+        return 'sent';
       }
       if (res.status === 403) {
         payload.failed403 = true;
         persist();
-        showToast('Not sent: the dev server restarted. Reload the page to reconnect.', 8000);
-        return false;
+        return 'stale';
       }
       if (payload.attempts >= 3) {
         payload.gaveUp = true;
         persist();
-        showToast(`Not sent: the dev server rejected it (${res.status}). Check its log.`, 8000);
         return false;
       }
-      showToast(`Send failed (${res.status}), retrying…`, 6000);
-    } catch {
-      showToast('Dev server unreachable, retrying…', 6000);
-    }
+    } catch { /* the copy already went through; the queue retries quietly */ }
     persist();
     scheduleRetry();
     return false;
   };
-  // post() resolves 'sent' | 'waiting' | false
+  // post() resolves 'sent' | 'stale' | false
 
-  const deliver = async (payload) => {
+  // One submit, one outcome, decided before the click so the clipboard write keeps
+  // its user gesture: a session already listening gets it directly, everyone else
+  // gets a prompt to paste. The queue write underneath is a silent belt-and-braces.
+  const deliver = (payload) => {
     state.queue.push(payload);
     persist();
     // Tiny signal only: console truncates silently above ~4KB, so never the payload.
     console.log(`[design-mode] ${payload.kind} #${payload.seq} ready${payload.source ? ` (source via ${payload.source.via})` : ''}`);
-    if (cfg.endpoint) return (await post(payload)) || 'failed';
-    if (cfg.wakeUrl) {
-      try { fetch(`${cfg.wakeUrl}?token=${encodeURIComponent(cfg.token || '')}`, { mode: 'no-cors' }); } catch { /* not armed */ }
+    const live = state.armed === true;
+    const text = live ? '' : promptText(payload);
+    const copied = live ? false : copyForAgent(text);
+    if (copied) state.lastPrompt = text;
+    if (copied) { state.copied = true; syncBar(); }
+    if (!cfg.endpoint) {
+      showToast(copied ? `Copied. Paste it in Claude and press Enter (${PASTE_KEY}).` : 'Ready for Claude.');
+      return Promise.resolve(copied ? 'copied' : 'queued');
     }
-    showToast('Queued for Claude');
-    return 'queued';
+    return post(payload).then((r) => {
+      if (r === 'sent' && live) { showToast('Sent to Claude. It is working on it now.'); return 'sent'; }
+      if (r === 'stale' && !copied) { showToast('The dev server restarted. Reload the page to reconnect.', 8000); return 'failed'; }
+      if (copied) showToast(`Copied. Paste it in Claude and press Enter (${PASTE_KEY}).`);
+      else if (r === 'sent') showToast('Sent to Claude.');
+      else showToast('Could not copy or send. Reload the page and try again.', 8000);
+      return copied ? 'copied' : r === 'sent' ? 'sent' : 'failed';
+    });
   };
 
   /* ------------------------------------------------------ live previews --- */
@@ -1216,6 +1323,9 @@
     return chain[0] || elx.tagName.toLowerCase();
   };
 
+  // Every submit affordance says the same true thing about what the click will do.
+  const submitVerb = () => (state.armed ? 'Send to Claude' : 'Copy for Claude');
+
   let trayNoteValue = '';
   let trayScopeValue = 'auto';
   const SCOPES = [
@@ -1263,8 +1373,10 @@
       discard.addEventListener('click', () => { if (n > 1) confirmBox({ text: `Discard ${n} unsent changes?`, ok: 'Discard', onOk: discardAll }); else discardAll(); });
       h.append(count, discard);
       const commit = mk('btn primary full', 'button');
-      commit.textContent = 'Ask Claude to commit';
-      commit.title = 'Review, add a note, and send the changes to Claude';
+      commit.textContent = submitVerb();
+      commit.title = state.armed
+        ? 'Review, add a note, and send the changes to the Claude session that is listening'
+        : 'Review, add a note, and copy the changes as a prompt to paste into Claude';
       commit.addEventListener('click', openCommitModal);
       tray.append(h, commit);
     }
@@ -1272,8 +1384,8 @@
       const statuses = new Set(state.committed.map((c) => (c.entry ? c.entry.status : 'sent')));
       const word = statuses.has('sending') ? 'Sending to Claude'
         : statuses.has('failed') ? 'Not sent (see message)'
-        : statuses.has('waiting') ? 'Delivered · no session listening yet'
-        : statuses.has('queued') ? 'Queued for Claude' : 'Sent to Claude';
+        : statuses.has('copied') ? `Copied, paste in Claude (${PASTE_KEY})`
+        : statuses.has('queued') ? 'Ready for Claude' : 'Sent to Claude';
       const st = mk('tray-status');
       st.innerHTML = `<span title="Previews stay on the page until Claude applies the edits and the page reloads">${word} · ${committed} previewing</span>`;
       const clear = document.createElement('button');
@@ -1323,7 +1435,7 @@
       const n = pendingCount();
       box_.innerHTML = '';
       const h = mk('modal-h');
-      h.innerHTML = `<span>Ask Claude to commit <span class="muted">· ${n} change${n === 1 ? '' : 's'}</span></span>`;
+      h.innerHTML = `<span>${submitVerb()} <span class="muted">· ${n} change${n === 1 ? '' : 's'}</span></span>`;
       const close = mk('kbtn', 'button');
       close.textContent = 'esc';
       close.title = 'Cancel (Esc)';
@@ -1359,7 +1471,7 @@
       cancel.textContent = 'Cancel';
       cancel.addEventListener('click', closeCommitModal);
       const confirm = mk('btn primary', 'button');
-      confirm.textContent = 'Send to Claude';
+      confirm.textContent = submitVerb();
       confirm.disabled = !n;
       confirm.addEventListener('click', () => {
         if (!pendingCount()) return;
@@ -2080,7 +2192,7 @@
     const hint = mk('hint', 'span');
     hint.textContent = 'Enter to send · Shift+Enter newline';
     const send = mk('btn primary', 'button');
-    send.textContent = 'Send to Claude';
+    send.textContent = submitVerb();
     send.addEventListener('click', sendPrompt);
     foot.append(hint, send);
     body.append(ta, scopes, foot);
@@ -2577,7 +2689,6 @@
   document.documentElement.addEventListener('mouseleave', clearHover);
   window.addEventListener('blur', clearHover);
 
-  const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || '');
   const isTextEntry = (n) => n instanceof Element && (n.tagName === 'TEXTAREA' || n.isContentEditable
     || (n.tagName === 'INPUT' && !/^(button|checkbox|radio|range|color|file|submit|reset|image)$/i.test(n.type || 'text')));
   const inOurUI = (n) => isOurs(n) || (n && n.getRootNode && n.getRootNode() === shadow);
@@ -2646,6 +2757,7 @@
     enable() {
       ensureMounted();
       state.active = true;
+      watchArmed(true);
       syncBar();
       applyDock(); // the bar claims its strip the moment Design Mode turns on
       syncCursor();
@@ -2654,6 +2766,8 @@
       closeConfirm();
       if (pendingCount()) discardAll();
       state.active = false;
+      watchArmed(false);
+      state.copied = false;
       state.picking = false;
       state.hoverEl = null;
       closePrompt(); // gives the page its top strip back too
