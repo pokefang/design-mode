@@ -3,7 +3,8 @@
 Click an element in your running app, describe the change or edit it in a
 Figma-style sidebar, and Claude Code edits the exact source line that rendered
 it. Inspector overlay + Vite plugin (or a standalone server for any stack) +
-the Claude Code session skill + a wake watcher, in one package.
+the Claude Code session skill, in one package. Submitting copies a short prompt
+for you to paste; nothing has to run in the background.
 
 ```bash
 npm i -D claude-design-mode

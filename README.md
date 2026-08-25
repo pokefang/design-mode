@@ -57,10 +57,11 @@ React debug stacks or the DOM path plus repo search.
 
 `init` already dropped the skill into `.claude/skills/design-mode/`, so any
 Claude Code session in that project can run it: say "start design mode" (or
-`/design-mode`). It starts your dev server in the Browser pane, arms the wake
-watcher (`npx claude-design-mode wait`), and processes each selection as it
-lands. Prefer a plugin you install once for every project? This repo is also a
-Claude Code plugin marketplace:
+`/design-mode`). It starts your dev server in the Browser pane and acts on each
+request as it arrives, whether you paste it in or it is delivered for you.
+Nothing runs in the background. Prefer a skill you install once for every
+project instead of per repo? This repo is also a Claude Code plugin
+marketplace:
 
 ```
 /plugin marketplace add pokefang/design-mode
