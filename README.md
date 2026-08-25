@@ -87,13 +87,21 @@ header re-arms inspecting without closing it. Clicking a value lists the tokens
 your app actually defines, dragging a value scrubs it, double-clicking resets
 it; a dot beside a label means the property has a pending change, a small
 triangle means the value is a literal with no token behind it. Every change
-previews instantly; the change count at the bottom opens the review list, and
-"Ask Claude to commit" ships it with an optional note. While Design Mode is on,
-a status bar sits in its own strip across the top of the page (it never covers
-your app, and it steps aside for the sidebar). Once anything is unsent it grows
-a "Send N changes to Claude" button, so the whole run can be shipped from the
-bar with the sidebar closed. Esc closes the sidebar, Esc again exits Design
-Mode, asking first if anything is unsent.
+previews instantly and collects in the "Ask Claude" section, where one button
+ships the whole run and the text box doubles as the note; clicking the change
+count opens the list to review or revert them one by one.
+
+Submitting copies a short prompt naming the file, line, and each property from
+and to, ready to paste into Claude Code or any other agent. Nothing has to be
+running for that: the button says "Copy N changes for Claude" and the bar keeps
+a "Paste in Claude" reminder until you do. If a session is already listening the
+same button reads "Send N changes to Claude" and delivers it directly.
+
+While Design Mode is on and nothing is selected, a status bar sits in its own
+strip across the top of the page, so it never covers your app; it hands the
+space back when the sidebar opens. It carries the submit button and a light and
+dark toggle that follows your system by default. Esc closes the sidebar, Esc
+again exits Design Mode, asking first if anything is unsent.
 
 ## How it works
 
