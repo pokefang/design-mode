@@ -303,7 +303,8 @@
     .hc { display: inline-flex; width: 9px; height: 9px; color: var(--warn); flex: none; vertical-align: -1px; }
     .hc svg { width: 100%; height: 100%; display: block; }
     .changes-box { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--bd-soft); }
-    .sec-h .hcount { color: var(--ac-tx); font-weight: 600; font-size: 10.5px; margin-left: 6px; }
+    .sec-h .hcount { color: var(--ac-tx); font-weight: 600; font-size: 10.5px; margin-left: 6px; background: none; border: 0; padding: 0; font-family: inherit; cursor: pointer; }
+    .sec-h .hcount:hover { color: var(--ac-tx-hi); text-decoration: underline; }
     .tray-status { margin-top: 8px; }
     .tray-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-weight: 600; min-width: 0; }
     .tray-h .count { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
@@ -1327,6 +1328,7 @@
       if (!map.size) state.pending.delete(elx);
       renderTray();
       refreshModMarks();
+      refreshBoxSize();
       onScrollOrResize();
       return;
     }
@@ -1339,6 +1341,7 @@
     renderTray();
     if (companions.length) renderPanel(elx, true); // a companion (line-height with a text token) must show as changed too
     else refreshModMarks();
+    refreshBoxSize();
     onScrollOrResize();
   };
 
@@ -1853,6 +1856,31 @@
   };
 
   // Box-model diagram (Webflow-style): margin ring, padding ring, element size in the middle.
+  // The innermost cell sits inside the padding ring, so it reports the content box:
+  // editing padding has to move it. Recomputed from the live element, never from the
+  // rect captured when the panel was drawn.
+  const refreshBoxSize = (fallbackRect = null) => {
+    const bc = state.bcEl;
+    if (!bc) return; // still being built: it is not in the document yet on the first paint
+    const el = state.selectedEl;
+    if (!el || !el.isConnected) { if (fallbackRect) bc.textContent = `${Math.round(fallbackRect.width)} × ${Math.round(fallbackRect.height)}`; return; }
+    const cs2 = getComputedStyle(el);
+    const r = el.getBoundingClientRect();
+    const num = (v) => parseFloat(v) || 0;
+    // computed width follows box-sizing, so derive the content box from the padding box
+    // instead: clientWidth/Height exclude border and scrollbar, and padding comes off here
+    const cw = el.clientWidth - num(cs2.paddingLeft) - num(cs2.paddingRight);
+    const ch = el.clientHeight - num(cs2.paddingTop) - num(cs2.paddingBottom);
+    // inline, non-replaced elements have no box of their own to measure
+    const inline = !el.clientWidth && !el.clientHeight;
+    bc.textContent = inline
+      ? `${Math.round(r.width)} × ${Math.round(r.height)}`
+      : `${Math.round(Math.max(0, cw))} × ${Math.round(Math.max(0, ch))}`;
+    bc.title = inline
+      ? 'Rendered size (inline element, no content box of its own)'
+      : `Content box · rendered ${Math.round(r.width)} × ${Math.round(r.height)} including padding and border`;
+  };
+
   const boxModel = (cs, rect) => {
     const SIDES = ['top', 'right', 'bottom', 'left'];
     const bm = mk('bm');
@@ -1921,8 +1949,8 @@
     const bp = mk('bp');
     bp.append(...diags(), label('Padding', pProps), ...SIDES.map((sd) => field(`padding-${sd}`, sd[0], false)));
     const bc = mk('bc');
-    bc.textContent = `${Math.round(rect.width)} × ${Math.round(rect.height)}`;
-    bc.title = 'Rendered size';
+    state.bcEl = bc;
+    refreshBoxSize(rect);
     bp.append(bc);
     bm.append(bp);
     return bm;
@@ -2220,7 +2248,7 @@
   const promptSection = () => {
     const s = mk('sec prompt' + (state.promptExpanded ? '' : ' closed'));
     const h = mk('sec-h');
-    h.innerHTML = '<span>Ask Claude</span><span class="hcount"></span><span class="kbd">&#8629; to open</span><span class="chev">&#9660;</span>';
+    h.innerHTML = '<span>Ask Claude</span><button class="hcount" type="button"></button><span class="kbd">&#8629; to open</span><span class="chev">&#9660;</span>';
     const hCount = h.querySelector('.hcount');
     const body = mk('sec-body');
     const ta = mk('ta', 'textarea');
@@ -2262,6 +2290,7 @@
       refresh();
     };
     send.addEventListener('click', submit);
+    hCount.addEventListener('click', (e) => { e.stopPropagation(); submit(); });
     foot.append(hint, send);
     body.append(ta, scopes, changesBox, statusBox, foot);
 
@@ -2271,6 +2300,7 @@
       const committed = state.committed.reduce((k, c) => k + c.changes.length, 0);
       hCount.textContent = n ? `${n} change${n > 1 ? 's' : ''}` : '';
       hCount.style.display = n ? '' : 'none';
+      hCount.title = n ? `${send.textContent || submitVerb()}` : '';
       changesBox.innerHTML = '';
       changesBox.style.display = n ? '' : 'none';
       if (n) {
@@ -2306,6 +2336,7 @@
       send.textContent = n
         ? `${state.armed ? 'Send' : 'Copy'} ${n} change${n > 1 ? 's' : ''} ${state.armed ? 'to' : 'for'} Claude`
         : submitVerb();
+      hCount.title = n ? send.textContent : '';
       hint.textContent = n ? 'Enter sends these with your note' : 'Enter to send · Shift+Enter newline';
       ta.placeholder = n ? 'Note for Claude (optional)…' : 'Describe the change…';
     }
@@ -2637,6 +2668,8 @@
   /* ---------------------------------------------------------- selection --- */
 
   const closePrompt = () => {
+    state.bcEl = null;
+    state.refreshSubmit = null;
     closeDropdown();
     closeCommitModal();
     closeChildMenu();
@@ -2718,7 +2751,10 @@
         return;
       }
     }
-    if (state.promptOpen && state.selectedEl && state.selectedEl.isConnected) box(state.selectedEl, ring, 1);
+    if (state.promptOpen && state.selectedEl && state.selectedEl.isConnected) {
+      box(state.selectedEl, ring, 1);
+      refreshBoxSize(); // padding and margin edits change this, so it cannot be drawn once
+    }
     if (inspecting() && state.hoverEl && state.hoverEl.isConnected) {
       const r = box(state.hoverEl, hi);
       hiLabel.style.left = `${Math.max(4, r.left)}px`;
