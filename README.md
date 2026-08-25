@@ -90,9 +90,10 @@ triangle means the value is a literal with no token behind it. Every change
 previews instantly; the change count at the bottom opens the review list, and
 "Ask Claude to commit" ships it with an optional note. While Design Mode is on,
 a status bar sits in its own strip across the top of the page (it never covers
-your app, and it steps aside for the sidebar) showing how many changes are
-unsent; click that count to go back to them. Esc closes the sidebar, Esc again
-exits Design Mode, asking first if anything is unsent.
+your app, and it steps aside for the sidebar). Once anything is unsent it grows
+a "Send N changes to Claude" button, so the whole run can be shipped from the
+bar with the sidebar closed. Esc closes the sidebar, Esc again exits Design
+Mode, asking first if anything is unsent.
 
 ## How it works
 

@@ -249,8 +249,7 @@
     .bar { position: fixed; display: none; pointer-events: auto; top: 0; left: 0; right: 0; height: 34px; align-items: center; gap: 10px; background: #1E1E1E; border-bottom: 1px solid #333; padding: 0 10px 0 14px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); font-weight: 600; transition: left .22s ease, right .22s ease; }
     .bar .muted { color: #9B9B9B; font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
     .bar .spacer { flex: 1; min-width: 0; }
-    .bar .badge { color: #8FB2FF; font-weight: 600; }
-    .bar .badge:hover { text-decoration: underline; cursor: pointer; }
+    .bar .btn { flex: none; }
     .hdr-btns { margin-left: auto; display: flex; align-items: center; gap: 4px; flex: none; }
     .kbtn { flex: none; height: 22px; display: inline-flex; align-items: center; font: 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.02em; padding: 0 6px; border-radius: 4px; border: 1px solid #3A3A3A; border-bottom-width: 2px; background: #2B2B2B; color: #9B9B9B; }
     .kbtn:hover { color: #E8E8E8; border-color: #4A4A4A; }
@@ -290,14 +289,13 @@
   const toast = mk('toast ui');
   const bar = mk('bar ui');
   bar.innerHTML = '<span>Design Mode</span><span class="muted" title="Click an element to select it. Alt+click selects its parent">click an element</span><span class="spacer"></span>';
-  const barBadge = mk('badge', 'button');
-  barBadge.style.cssText = 'background:none;border:0;padding:0;font:inherit;display:none';
-  barBadge.title = 'Unsent changes. Click to go back to them';
-  barBadge.addEventListener('click', () => {
-    const first = [...state.pending.keys()].find((elx) => elx.isConnected && state.pending.get(elx).size);
-    if (first) { openPrompt(first); first.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
-  });
-  bar.append(barBadge);
+  // The bar is the last thing on screen once the sidebar is closed, so the send
+  // lives here too: it opens the same review-and-note box the sidebar's button does.
+  const barSend = mk('btn primary sm', 'button');
+  barSend.style.display = 'none';
+  barSend.title = 'Review the unsent changes, add a note, and send them to Claude';
+  barSend.addEventListener('click', () => openCommitModal());
+  bar.append(barSend);
   const barEsc = mk('kbtn', 'button');
   barEsc.textContent = 'esc';
   barEsc.title = 'Exit Design Mode (Esc)';
@@ -306,8 +304,8 @@
   const syncBar = () => {
     bar.style.display = state.active ? 'flex' : 'none';
     const n = pendingCount();
-    barBadge.style.display = n ? '' : 'none';
-    barBadge.textContent = n ? `${n} unsent` : '';
+    barSend.style.display = n ? '' : 'none';
+    barSend.textContent = n ? `Send ${n} change${n > 1 ? 's' : ''} to Claude` : '';
   };
   shadow.append(hi, hiLabel, ring, panel, toast, bar);
 
