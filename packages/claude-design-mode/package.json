@@ -1,6 +1,6 @@
 {
   "name": "claude-design-mode",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "type": "module",
   "description": "Click an element in your running app, describe the change or edit it in a Figma-style sidebar, and Claude Code edits the exact source line. Vite plugin + in-page overlay + session skill + wake watcher.",
   "author": "Billy Mangino",

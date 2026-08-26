@@ -27,16 +27,31 @@ in development (the `referrerpolicy` is how the server recognizes your app,
 even over https or with a strict referrer policy).
 
 Then, in a Claude Code session in the project, say "start design mode". In the
-page, `Cmd+D` (Ctrl+D on Windows and Linux) toggles the inspector: click anything, type an instruction or
-edit values (tokens are discovered from your own CSS), and "Ask Claude to
-commit".
+page, `Cmd+D` (Ctrl+D on Windows and Linux) toggles the inspector: click
+anything, type an instruction or edit values (tokens are discovered from your
+own CSS), and submit. Submitting copies a short prompt naming the file, the
+line, and each property from and to, ready to paste into Claude Code or any
+other agent:
+
+```
+Update the source:
+
+PricingSection (src/components/PricingSection.jsx:28)
+- font-size: text-lg -> text-4xl
+
+Note: make it as loud as the hero.
+```
+
+A status bar in its own strip across the top keeps a "Paste in Claude"
+reminder until you do, and carries a light and dark toggle that follows your
+system.
 
 ## CLI
 
 | command | what it does |
 | --- | --- |
 | `init [--port N] [--force]` | project setup (non-destructive, idempotent) |
-| `wait [queueDir] [--timeout M]` | block until a selection lands (the session's wake watcher) |
+| `wait [queueDir] [--timeout M]` | *optional*: block until a selection lands, so an agent picks edits up without you pasting |
 | `serve --app <origin> [--port 3850] [--queue dir]` | standalone overlay + endpoint server for non-Vite apps |
 | `overlay-path` | absolute path of the overlay, for manual injection into any page |
 | `skill-path` | where the bundled skill lives |
@@ -50,10 +65,13 @@ patterns when naming conventions and value types are not enough.
 
 ## Security
 
-Selections travel through a per-project queue outside your repo
-(`~/.claude-design-mode/<project>-<hash>/queue`); the armed session applies
-them the moment they land and the page says honestly whether a session is
-listening. Nothing is written into your working tree.
+Submitting copies a prompt to your clipboard, so the normal path needs nothing
+running and nothing listening. A copy of each payload is also written to a
+per-project queue outside your repo
+(`~/.claude-design-mode/<project>-<hash>/queue`), never into your working tree.
+Run `wait` if you would rather an agent pick edits up without pasting; the
+button then says "Send" instead of "Copy", so the page never claims a delivery
+that did not happen.
 
 Dev-serve only (never in builds, never under Vitest). The selection endpoint
 requires a per-boot token in a custom header, an allowed Origin, and a local
