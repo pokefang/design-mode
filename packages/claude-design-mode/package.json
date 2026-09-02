@@ -1,8 +1,8 @@
 {
   "name": "claude-design-mode",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "type": "module",
-  "description": "Click an element in your running app, describe the change or edit it in a Figma-style sidebar, and Claude Code edits the exact source line. Vite plugin + in-page overlay + session skill + wake watcher.",
+  "description": "Click an element in your running app and your coding agent edits the exact line that rendered it. Dev-time inspector, Vite plugin, and token-aware design sidebar for Claude Code and other agents.",
   "author": "Billy Mangino",
   "repository": {
     "type": "git",
@@ -18,7 +18,11 @@
     "design-mode",
     "vite-plugin",
     "inspector",
-    "devtools"
+    "devtools",
+    "react",
+    "design-tokens",
+    "ai-agent",
+    "developer-tools"
   ],
   "bin": {
     "claude-design-mode": "bin/cli.mjs"
