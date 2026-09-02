@@ -2,13 +2,13 @@
 
 **Click an element in your running app. Your agent edits the exact line that rendered it.**
 
-Created by [Billy Mangino](https://billymangino.com), a product designer who got tired of
-describing the same button three different ways.
+Design Mode is built for precision iteration: a familiar GUI for precise referencing and
+prompting. Select an element, edit it directly in the sidebar using your own tokens and
+design system, add context or don't, and send it to Claude for the update.
 
-Design Mode is a dev-time inspector for apps you build with a coding agent. Instead of
-describing what you want changed ("the heading on the pricing section, the bold one"),
-you click it, adjust it in a Figma-style sidebar, and hand your agent a prompt that names
-the file, the line, and every property you touched.
+Made by Billy Mangino at [billymangino.com](https://billymangino.com).
+
+![The Design Mode sidebar open on a running app: the selected heading, the file and line that rendered it, and its design tokens](https://raw.githubusercontent.com/pokefang/design-mode/main/docs/sidebar.png)
 
 The hard part is the element-to-source map, and that is what this package is really for.
 During dev, the Vite plugin stamps each JSX host element with the file, line, and column

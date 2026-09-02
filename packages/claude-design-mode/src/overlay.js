@@ -2025,6 +2025,12 @@
     if (swatch) current = rgbToHex(current);
     const borderless = prop === 'border-color' && noBorder(cs);
     if (borderless) current = 'none';
+    // a pending edit is what the field should read: the trace above describes the authored
+    // source, so a rebuild (a companion edit forces one) would otherwise snap the field
+    // back to the old token while the preview on the page shows the new one
+    const pend = state.pending.get(state.selectedEl);
+    const pv = pend && pend.get(prop);
+    if (pv) current = pv.to.token ? pv.to.token.replace(/^--/, '') : (pv.to.label || pv.to.css);
     const wrap = mk(swatch ? 'swatched' : '');
     let sw = null;
     if (swatch) { sw = mk('sw', 'span'); sw.style.background = borderless ? 'transparent' : cs.getPropertyValue(prop); wrap.append(sw); }
@@ -2902,7 +2908,7 @@
   /* ---------------------------------------------------------------- api --- */
 
   const api = {
-    version: '0.6.3',
+    version: '0.6.4',
     bootId: Math.random().toString(36).slice(2, 10),
     config: cfg,
     heartbeat: Date.now(),

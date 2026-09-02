@@ -6,8 +6,9 @@ that rendered it. The piece Cursor's Design Mode never shipped: a deterministic
 element-to-source map, plus token-aware edits that land in your design system's
 own vocabulary.
 
-Created by [Billy Mangino](https://billymangino.com), a product designer who got tired of
-describing the same button three different ways.
+Made by Billy Mangino at [billymangino.com](https://billymangino.com).
+
+![The Design Mode sidebar open on a running app: the selected heading, the file and line that rendered it, and its design tokens](https://raw.githubusercontent.com/pokefang/design-mode/main/docs/sidebar.png)
 
 ## Use it in your own app
 
