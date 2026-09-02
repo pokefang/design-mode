@@ -2,6 +2,9 @@
 
 **Click an element in your running app. Your agent edits the exact line that rendered it.**
 
+Created by [Billy Mangino](https://billymangino.com), a product designer who got tired of
+describing the same button three different ways.
+
 Design Mode is a dev-time inspector for apps you build with a coding agent. Instead of
 describing what you want changed ("the heading on the pricing section, the bold one"),
 you click it, adjust it in a Figma-style sidebar, and hand your agent a prompt that names

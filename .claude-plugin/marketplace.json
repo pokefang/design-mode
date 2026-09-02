@@ -9,7 +9,7 @@
       "name": "design-mode",
       "source": "./packages/claude-design-mode",
       "description": "In-page inspector + session skill. Pair with the claude-design-mode npm package in your app.",
-      "version": "0.6.2"
+      "version": "0.6.3"
     }
   ]
 }

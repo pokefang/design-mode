@@ -6,6 +6,9 @@ that rendered it. The piece Cursor's Design Mode never shipped: a deterministic
 element-to-source map, plus token-aware edits that land in your design system's
 own vocabulary.
 
+Created by [Billy Mangino](https://billymangino.com), a product designer who got tired of
+describing the same button three different ways.
+
 ## Use it in your own app
 
 Two halves: the **app side** (an npm package that puts the inspector in your

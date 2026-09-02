@@ -2902,7 +2902,7 @@
   /* ---------------------------------------------------------------- api --- */
 
   const api = {
-    version: '0.6.2',
+    version: '0.6.3',
     bootId: Math.random().toString(36).slice(2, 10),
     config: cfg,
     heartbeat: Date.now(),

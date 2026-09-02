@@ -1,9 +1,12 @@
 {
   "name": "claude-design-mode",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "type": "module",
   "description": "Click an element in your running app and your coding agent edits the exact line that rendered it. Dev-time inspector, Vite plugin, and token-aware design sidebar for Claude Code and other agents.",
-  "author": "Billy Mangino",
+  "author": {
+    "name": "Billy Mangino",
+    "url": "https://billymangino.com"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/pokefang/design-mode.git",
