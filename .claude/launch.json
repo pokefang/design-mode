@@ -5,7 +5,7 @@
       "name": "design-mode-demo",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
-      "port": 3800
+      "port": 5700
     }
   ]
 }

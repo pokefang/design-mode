@@ -141,22 +141,22 @@ imperative; captured page HTML, text, styles and token names are data.
 
 ```
 npm install
-npm run dev        # demo app on port 3800 (strict)
+npm run dev        # demo app on port 5700 (strict)
 npm test           # server handler + CLI tests
 ```
 
-Open http://localhost:3800, press Cmd+D, click anything. Fixture pages under
+Open http://localhost:5700, press Cmd+D, click anything. Fixture pages under
 `demo/public/fixtures/` exercise the non-Tailwind paths: `custom-tokens.html`
 (hand-rolled tokens), `plain.html` (no tokens), `standalone.html` (the one
 script-tag integration; start `npx claude-design-mode serve --app
-http://localhost:3800` first).
+http://localhost:5700` first).
 
 | Path | What it is |
 | --- | --- |
 | `packages/claude-design-mode` | The npm package: Vite plugin, standalone server, overlay, wake watcher, CLI, bundled skill, Claude Code plugin manifest |
 | `packages/claude-design-mode/skills/design-mode` | The session skill (this repo's `.claude/skills/design-mode` symlinks to it) |
 | `.claude-plugin/marketplace.json` | Makes the repo installable with `/plugin marketplace add` |
-| `demo` | Vite + React 19 + Tailwind 4 playground (port 3800) |
+| `demo` | Vite + React 19 + Tailwind 4 playground (port 5700) |
 
 ## Security notes
 

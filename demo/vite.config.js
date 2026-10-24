@@ -6,7 +6,7 @@ import designMode from 'claude-design-mode/vite'
 export default defineConfig({
   plugins: [designMode(), react(), tailwindcss()],
   server: {
-    port: 3800,
+    port: 5700,
     strictPort: true,
   },
 })
