@@ -110,6 +110,25 @@ the whole batch and the text box doubles as a note. When a Claude session is lis
 Design Mode and your selection survive a page reload (kept in the tab's session storage). Drag a number to scrub it, double click
 to reset it. There is a light and a dark theme, following your system by default.
 
+Value fields are built for quick tuning:
+
+- **Arrow keys** step any number: Up/Down by 1, Shift by 10, Option by 0.1 (em, rem and unitless
+  line-height move by tenths). Font weight steps between the weights the element's font really
+  loads (read from `document.fonts`), and shows a hardcoded hint if you type one it lacks.
+- **Steppers** (small - / + buttons that appear on hover or focus) repeat while held.
+- **Sliders** sit under opacity, font weight, line height, radius (with a Full pill button) and border width.
+- **Colour chips** open a picker: your colour tokens as chips, then a custom picker (saturation and
+  value square, hue, alpha, hex or rgba text, and an eyedropper where the browser has one). Tokens
+  write `var(--token)`; custom colours write a literal and are flagged hardcoded.
+- **Radius** has one linked field with a slider, and a toggle for four per-corner inputs.
+- **Border** has a side selector (all, top, right, bottom, left), width, style and colour.
+
+Selecting: hold **Option** while hovering to reach elements the pointer cannot hit (overlays,
+stretched links, `pointer-events: none` children); Option+click selects that target. With
+something selected, tap **Option** for its first child, tap **Control** for its parent, and
+**Tab** or **Shift+Tab** for the next or previous sibling. None of these fire while you are
+typing in a field.
+
 ## What it changes in your project
 
 - One dev dependency, and one line in your Vite config that you add yourself.

@@ -60,6 +60,8 @@
     picking: false,       // hover inspector stays on while the sidebar is open
     // storage access itself can throw (sandboxed iframe, blocked cookies); never let that kill the overlay
     linkSides: (() => { try { return sessionStorage.getItem('__cdm_link_sides') === '1'; } catch { return false; } })(), // box model edits all four sides at once
+    radiusCorners: false, // radius control shows the four corner inputs
+    borderSide: 'all',    // which border side the Border controls edit
     trailLeaf: null,      // deepest element of the breadcrumb trail (children stay visible)
     dock: (() => { try { return sessionStorage.getItem('__cdm_dock') === 'left' ? 'left' : 'right'; } catch { return 'right'; } })(),
     promptExpanded: false,
@@ -308,6 +310,56 @@
     .dd .empty { color: var(--tx-mut); padding: 6px 8px; font-size: 10.5px; }
     input[type=number].ctl { -moz-appearance: textfield; }
     input[type=number].ctl::-webkit-inner-spin-button { opacity: 0.6; }
+    .fld { position: relative; min-width: 0; }
+    .fld .ctl { padding-right: 44px; }
+    .stp { position: absolute; right: 3px; top: 3px; bottom: 3px; display: flex; gap: 1px; opacity: 0; transition: opacity .1s; }
+    .row:hover .stp, .fld:focus-within .stp { opacity: 1; }
+    .stp button { width: 18px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--tx-mut); display: flex; align-items: center; justify-content: center; }
+    .stp button:hover { background: var(--bd-ctl); color: var(--tx); }
+    .stp svg { width: 8px; height: 8px; display: block; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; }
+    .fs { display: grid; gap: 2px; min-width: 0; }
+    .fs .hc { position: absolute; right: 42px; top: 8px; }
+    .ctl.warn { border-color: var(--warn); }
+    .srow { display: grid; grid-template-columns: 1fr; align-items: center; gap: 6px; min-width: 0; }
+    .srow.has-full { grid-template-columns: 1fr auto; }
+    .rng { -webkit-appearance: none; appearance: none; width: 100%; height: 14px; margin: 0; padding: 0; background: transparent; outline: none; cursor: pointer; display: block; }
+    .rng::-webkit-slider-runnable-track { height: 3px; border-radius: 2px; background: linear-gradient(to right, var(--ac) var(--p, 0%), var(--bd-ctl) var(--p, 0%)); }
+    .rng::-webkit-slider-thumb { -webkit-appearance: none; width: 10px; height: 10px; margin-top: -3.5px; border-radius: 50%; background: var(--tx); border: 0; }
+    .rng:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px var(--ac-t18); }
+    .rng::-moz-range-track { height: 3px; border-radius: 2px; background: var(--bd-ctl); }
+    .rng::-moz-range-progress { height: 3px; border-radius: 2px; background: var(--ac); }
+    .rng::-moz-range-thumb { width: 10px; height: 10px; border-radius: 50%; background: var(--tx); border: 0; }
+    .minibtn { height: 20px; padding: 0 7px; border: 1px solid var(--bd-ctl); border-radius: 5px; background: transparent; color: var(--tx-mut); font-size: 10.5px; }
+    .minibtn:hover { color: var(--tx); }
+    .minibtn.on { background: var(--seg-on); color: var(--tx); border-color: transparent; }
+    .rc-top { display: grid; grid-template-columns: 1fr auto; gap: 4px; align-items: start; min-width: 0; }
+    .tgl { width: 26px; height: 26px; padding: 0; border: 1px solid transparent; border-radius: 6px; background: var(--ctl); color: var(--tx-mut); display: flex; align-items: center; justify-content: center; }
+    .tgl:hover { border-color: var(--bd-ctl); color: var(--tx); }
+    .tgl.on { color: var(--ac); border-color: var(--ac); background: var(--ac-t15); }
+    .tgl svg { width: 14px; height: 14px; display: block; }
+    .rcd { position: relative; height: 92px; margin-top: 6px; }
+    .rcd .sq { position: absolute; left: 46px; right: 46px; top: 16px; bottom: 16px; background: var(--bm-in); border: 1px solid var(--bd-bm-in); }
+    .rcn { position: absolute; width: 42px; height: 22px; padding: 0 2px; text-align: center; font-size: 11px; cursor: ew-resize; }
+    .rcn:focus { cursor: text; }
+    .rcn.tl { top: 0; left: 0; } .rcn.tr { top: 0; right: 0; } .rcn.br { bottom: 0; right: 0; } .rcn.bl { bottom: 0; left: 0; }
+    .sub-h { margin: 8px 0 3px; font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--tx-dim); }
+    .sw { padding: 0; cursor: pointer; display: block; }
+    .sw:hover { border-color: var(--bd-hi); }
+    .cp { position: absolute; z-index: 5; width: 244px; background: var(--ctl); border: 1px solid var(--bd-ctl); border-radius: 8px; box-shadow: 0 10px 30px var(--sh-lg); padding: 8px; display: flex; flex-direction: column; gap: 8px; }
+    .cp-h { font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--tx-dim); }
+    .cp-grid { display: flex; flex-wrap: wrap; gap: 4px; max-height: 84px; overflow: auto; }
+    .cp-chip { width: 20px; height: 20px; padding: 0; border-radius: 5px; border: 1px solid var(--bd-ctl); }
+    .cp-chip:hover { border-color: var(--bd-hi); }
+    .cp-chip.cur { outline: 2px solid var(--ac); outline-offset: 1px; }
+    .cp-sv { position: relative; height: 112px; border-radius: 6px; cursor: crosshair; touch-action: none; border: 1px solid var(--bd-ctl); }
+    .cp-sv i, .cp-bar i { position: absolute; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.45); pointer-events: none; }
+    .cp-bar { position: relative; height: 10px; border-radius: 5px; cursor: pointer; touch-action: none; border: 1px solid var(--bd-ctl); }
+    .cp-bar i { top: 50%; }
+    .cp-row { display: grid; grid-template-columns: 1fr auto; gap: 6px; align-items: center; }
+    .cp-row .ctl { font-size: 11px; }
+    .cp-eye { width: 26px; height: 26px; padding: 0; border: 1px solid var(--bd-ctl); border-radius: 6px; background: transparent; color: var(--tx-mut); display: flex; align-items: center; justify-content: center; }
+    .cp-eye:hover { color: var(--tx); }
+    .cp-eye svg { width: 14px; height: 14px; display: block; }
     .unit { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px; min-width: 0; }
     .unit .u { color: var(--tx-mut); font-size: 10px; white-space: nowrap; }
     .swatched { display: grid; grid-template-columns: auto 1fr; gap: 6px; align-items: center; min-width: 0; }
@@ -397,7 +449,7 @@
   panel.append(panelHead, panelScroll);
   const toast = mk('toast ui');
   const bar = mk('bar ui');
-  bar.innerHTML = '<span>Design Mode</span><span class="muted" title="Click an element to select it. Alt+click selects its parent">click an element</span><span class="spacer"></span>';
+  bar.innerHTML = '<span>Design Mode</span><span class="muted" title="Click an element to select it. Hold Option to reach elements the pointer cannot hit (overlays, covers). With a selection: tap Option for the first child, tap Control for the parent, Tab and Shift+Tab for the next and previous sibling">click an element</span><span class="spacer"></span>';
   // The bar is the last thing on screen once the sidebar is closed, so the send
   // lives here too: it opens the same review-and-note box the sidebar's button does.
   const barSend = mk('btn primary sm', 'button');
@@ -1101,7 +1153,7 @@
   };
   const typeOfToken = (name) => { const cat = tokenCatalog(); return cat.types[name] || classifyValue(resolveVar(name)); };
   // what a field accepts beyond its own family list (a real token typed by name)
-  const FIELD_TYPES = { color: ['color'], fontFamily: ['fontFamily'], fontWeight: ['weight', 'number'], fontSize: ['length'], lineHeight: ['lineHeight', 'number', 'length'], tracking: ['tracking', 'length'], radius: ['length'], shadow: ['shadow'], spacing: ['length'] };
+  const FIELD_TYPES = { color: ['color'], fontFamily: ['fontFamily'], fontWeight: ['weight', 'number'], fontSize: ['length'], lineHeight: ['lineHeight', 'number', 'length'], tracking: ['tracking', 'length'], radius: ['length'], borderWidth: ['length'], shadow: ['shadow'], spacing: ['length'] };
   const tokenFits = (key, name) => {
     const cat = tokenCatalog();
     if ((cat[key] || []).includes(name)) return true;
@@ -1826,12 +1878,17 @@
     't-left': '<path d="M2 4h12M2 7h8M2 10h12M2 13h8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>',
     't-center': '<path d="M2 4h12M4 7h8M2 10h12M4 13h8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>',
     't-right': '<path d="M2 4h12M6 7h8M2 10h12M6 13h8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>',
+    'bd-all': '<rect x="3" y="3" width="10" height="10" rx="1" fill="none" stroke="currentColor" stroke-width="1.8"/>',
+    'bd-top': '<rect x="3" y="3" width="10" height="10" rx="1" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="1.5 1.5" opacity=".5"/><path d="M3 3h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+    'bd-right': '<rect x="3" y="3" width="10" height="10" rx="1" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="1.5 1.5" opacity=".5"/><path d="M13 3v10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+    'bd-bottom': '<rect x="3" y="3" width="10" height="10" rx="1" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="1.5 1.5" opacity=".5"/><path d="M3 13h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+    'bd-left': '<rect x="3" y="3" width="10" height="10" rx="1" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="1.5 1.5" opacity=".5"/><path d="M3 3v10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
     't-justify': '<path d="M2 4h12M2 7h12M2 10h12M2 13h12" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>',
   };
   const svg = (name) => `<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">${ICON[name] || ''}</svg>`;
 
   // Icon segmented control (Webflow-style): options [{ value, icon, title }]
-  const segmented = ({ prop, options, current, system = true, map }) => {
+  const segmented = ({ prop, options, current, system = true, map, onPick }) => {
     const seg = mk('seg');
     seg.setAttribute('data-cdm-field', '');
     let cur = (map && map[current]) || current;
@@ -1849,10 +1906,12 @@
         cur = o.value;
         paint();
         applyPreview(prop, o.value, { label: o.value, primitive: o.value, system });
+        if (onPick) onPick(o.value);
       });
       seg.append(b);
     }
     paint();
+    seg._set = (v) => { cur = v; paint(); }; // lets a linked control move the highlight
     return seg;
   };
 
@@ -2055,7 +2114,7 @@
   //   Enter commits and closes the list · Escape restores the live value and closes · Tab closes
   //   Up/Down nudge by `step` (Shift: `bigStep`) with an instant preview; while the list is
   //   open and the user has arrowed into it, Up/Down move the highlight and Enter picks.
-  const numericKeys = (inp, { reset, nudge, step = 1, bigStep = 10 }) => {
+  const numericKeys = (inp, { reset, nudge, step = 1, bigStep = 10, altStep = step }) => {
     inp.setAttribute('data-cdm-field', '');
     const mine = () => dd && dd.anchor === inp;
     inp.addEventListener('keydown', (e) => {
@@ -2074,7 +2133,7 @@
         e.preventDefault();
         if (mine() && dd.navigated) { dd.move(e.key === 'ArrowDown' ? 1 : -1); return; }
         if (mine() && dd.filter && dd.shown.length) { dd.move(e.key === 'ArrowDown' ? 1 : -1); return; }
-        const by = e.shiftKey ? bigStep : step;
+        const by = e.shiftKey ? bigStep : e.altKey ? altStep : step;
         nudge(e.key === 'ArrowUp' ? by : -by, e.shiftKey);
       }
     });
@@ -2098,6 +2157,263 @@
   };
   const fieldKeys = (inp, reset) => numericKeys(inp, { reset, nudge: () => {} });
 
+
+  /* ---------------------------------------------- numeric stepping helpers --- */
+
+  const VAL_RE = /^(-?(?:\d+\.?\d*|\.\d+))(px|rem|em|%|)$/;
+  const parseVal = (s) => { const m = VAL_RE.exec(String(s == null ? '' : s).trim()); return m ? { n: parseFloat(m[1]), u: m[2] } : null; };
+  const fmtNum = (n) => String(Math.round(n * 1000) / 1000);
+  // a length in px (em uses the element's own size; rem the root's)
+  const valPx = (v, elx) => (v.u === 'rem' ? v.n * rootFontPx() : v.u === 'em' ? v.n * (parseFloat(getComputedStyle(elx || document.documentElement).fontSize) || 16) : v.n);
+  const sameVal = (a, b, elx) => (a.u === b.u ? Math.abs(a.n - b.n) < 1e-6 : (a.u && b.u && a.u !== '%' && b.u !== '%') ? Math.abs(valPx(a, elx) - valPx(b, elx)) < 0.01 : false);
+  // Up/Down, Shift, Alt step sizes for a value in unit u: px and % move by whole units;
+  // em, rem and unitless (line-height) would jump far too much by 1, so they move by tenths
+  const stepSizes = (u) => (u === 'px' || u === '%' ? { step: 1, big: 10, alt: 0.1 } : { step: 0.1, big: 1, alt: 0.01 });
+
+  // Font weights the element's font really has: FontFace entries (declared @font-face rules,
+  // including variable-font ranges) whose family matches the first computed family.
+  // null = a system or generic font, or not determinable: the full 100 to 900 range applies.
+  const GENERIC_FONTS = new Set(['serif', 'sans-serif', 'monospace', 'cursive', 'fantasy', 'system-ui', 'ui-serif', 'ui-sans-serif', 'ui-monospace', 'ui-rounded', 'emoji', 'math', 'fangsong', '-apple-system', 'blinkmacsystemfont']);
+  const unq = (f) => String(f).trim().replace(/^["']|["']$/g, '').toLowerCase();
+  const weightSet = (elx) => {
+    try {
+      if (!elx || !document.fonts || !document.fonts.forEach) return null;
+      const fam = unq(getComputedStyle(elx).fontFamily.split(',')[0] || '');
+      if (!fam || GENERIC_FONTS.has(fam)) return null;
+      const set = new Set();
+      document.fonts.forEach((ff) => {
+        if (unq(ff.family) !== fam || ff.status === 'error') return;
+        const parts = String(ff.weight || '400').trim().split(/\s+/).map((w) => (w === 'normal' ? 400 : w === 'bold' ? 700 : parseFloat(w)));
+        const lo = parts[0]; const hi = parts[1] === undefined ? parts[0] : parts[1];
+        if (!Number.isFinite(lo) || !Number.isFinite(hi)) return;
+        if (parts.length > 1) { for (let w = 100; w <= 900; w += 100) if (w >= lo && w <= hi) set.add(w); } else set.add(lo);
+      });
+      return set.size ? [...set].sort((a, b) => a - b) : null;
+    } catch { return null; }
+  };
+  // the weight the browser actually draws for a requested one (CSS font matching order)
+  const renderedWeight = (w, set) => {
+    if (!set || set.includes(w)) return w;
+    const lower = [...set].filter((x) => x < w).sort((a, b) => b - a);
+    const higher = [...set].filter((x) => x > w).sort((a, b) => a - b);
+    if (w < 400) return lower[0] ?? higher[0];
+    if (w > 500) return higher[0] ?? lower[0];
+    const mid = higher.find((x) => x <= 500);
+    return w === 400 ? (mid ?? lower[0] ?? higher[0]) : (lower[0] ?? higher[0]);
+  };
+  const nearestIn = (list, w) => list.reduce((b, x) => (Math.abs(x - w) < Math.abs(b - w) ? x : b), list[0]);
+  const weightsFor = (elx) => weightSet(elx) || [100, 200, 300, 400, 500, 600, 700, 800, 900];
+  // step to the next available weight (or `n` weights along with Shift)
+  const stepWeight = (cur, dir, elx, n = 1) => {
+    const list = weightsFor(elx);
+    let w = cur;
+    for (let i = 0; i < n; i++) {
+      const nx = dir > 0 ? list.find((x) => x > w) : [...list].reverse().find((x) => x < w);
+      if (nx === undefined) break;
+      w = nx;
+    }
+    return w;
+  };
+
+  const STEP_ICON = { '-': '<svg viewBox="0 0 8 8"><path d="M1.5 4h5"/></svg>', '+': '<svg viewBox="0 0 8 8"><path d="M1.5 4h5M4 1.5v5"/></svg>' };
+  // small - / + buttons inside the right edge of a numeric field. bump(dir, mod): mod is '', 'shift' or 'alt'.
+  // Press-and-hold repeats. The buttons never take focus, so a field being edited keeps it.
+  const withStepper = (inp, bump) => {
+    const fld = mk('fld');
+    const st = mk('stp', 'span');
+    const mkb = (dir) => {
+      const b = mk('', 'button');
+      b.type = 'button';
+      b.tabIndex = -1;
+      b.innerHTML = STEP_ICON[dir > 0 ? '+' : '-'];
+      b.title = dir > 0 ? 'Increase (Shift: big step, Option: fine step)' : 'Decrease (Shift: big step, Option: fine step)';
+      b.setAttribute('aria-label', dir > 0 ? 'Increase' : 'Decrease');
+      let t = 0; let iv = 0;
+      const stop = () => { clearTimeout(t); clearInterval(iv); t = 0; iv = 0; };
+      b.addEventListener('pointerdown', (e) => {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        try { b.setPointerCapture(e.pointerId); } catch { /* fine */ }
+        const mod = e.shiftKey ? 'shift' : e.altKey ? 'alt' : '';
+        bump(dir, mod);
+        t = setTimeout(() => { iv = setInterval(() => bump(dir, mod), 70); }, 380);
+      });
+      for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) b.addEventListener(ev, stop);
+      b.addEventListener('mousedown', (e) => e.preventDefault());
+      return b;
+    };
+    st.append(mkb(-1), mkb(1));
+    fld.append(inp, st);
+    return fld;
+  };
+  // a stepper for fields that already use numericKeys' nudge(by, big) contract
+  const nudgeStepper = (inp, { nudge, step = 1, bigStep = 10, altStep = step }) =>
+    withStepper(inp, (dir, mod) => { nudge(dir * (mod === 'shift' ? bigStep : mod === 'alt' ? altStep : step), mod === 'shift'); });
+
+  // thin range input; set(v) moves it without firing onInput
+  const slider = ({ min, max, step, onInput, title }) => {
+    const r = mk('rng', 'input');
+    r.type = 'range';
+    r.min = String(min); r.max = String(max); r.step = String(step);
+    if (title) r.title = title;
+    r.setAttribute('data-cdm-field', '');
+    const paint = () => { const lo = parseFloat(r.min); const hi = parseFloat(r.max); r.style.setProperty('--p', `${hi > lo ? ((parseFloat(r.value) - lo) / (hi - lo)) * 100 : 0}%`); };
+    r.addEventListener('input', () => { paint(); onInput(parseFloat(r.value)); });
+    r.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Escape') { e.preventDefault(); r.blur(); } });
+    return { node: r, set: (v) => { r.value = String(v); paint(); }, range: (lo, hi, st) => { r.min = String(lo); r.max = String(hi); r.step = String(st); paint(); } };
+  };
+
+  /* ---------------------------------------------------------- colour maths --- */
+
+  let colorCtx = null;
+  // any CSS colour -> { r, g, b, a } in sRGB (canvas resolves oklch(), color-mix(), names...)
+  const toRGBA = (css) => {
+    try {
+      if (!colorCtx) { const c = document.createElement('canvas'); c.width = c.height = 1; colorCtx = c.getContext('2d', { willReadFrequently: true }); }
+      colorCtx.clearRect(0, 0, 1, 1);
+      colorCtx.fillStyle = '#000';
+      colorCtx.fillStyle = String(css);
+      colorCtx.fillRect(0, 0, 1, 1);
+      const d = colorCtx.getImageData(0, 0, 1, 1).data;
+      return { r: d[0], g: d[1], b: d[2], a: Math.round((d[3] / 255) * 100) / 100 };
+    } catch { return { r: 0, g: 0, b: 0, a: 1 }; }
+  };
+  const rgbToHsv = ({ r, g, b }) => {
+    r /= 255; g /= 255; b /= 255;
+    const mx = Math.max(r, g, b); const mn = Math.min(r, g, b); const d = mx - mn;
+    let h = 0;
+    if (d) h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    return { h: ((h * 60) + 360) % 360, s: mx ? d / mx : 0, v: mx };
+  };
+  const hsvToRgb = (h, s, v) => {
+    const f = (n) => { const k = (n + h / 60) % 6; return v - v * s * Math.max(0, Math.min(k, 4 - k, 1)); };
+    return { r: Math.round(f(5) * 255), g: Math.round(f(3) * 255), b: Math.round(f(1) * 255) };
+  };
+  const hex2 = (n) => n.toString(16).padStart(2, '0');
+  const rgbaCss = ({ r, g, b, a }) => (a >= 1 ? `#${hex2(r)}${hex2(g)}${hex2(b)}` : `rgba(${r}, ${g}, ${b}, ${fmtNum(a)})`);
+
+  // Colour picker popover: the page's colour tokens as chips, then a custom picker
+  // (saturation/value square, hue, alpha, text, eyedropper). Chips call onToken(name);
+  // the custom picker calls onCustom(css) on every drag step. Esc, outside click or
+  // picking elsewhere closes it.
+  let cp = null;
+  const closeColorPicker = () => {
+    if (!cp) return;
+    document.removeEventListener('pointerdown', cp.out, true);
+    cp.el.remove();
+    if (cp.anchor) cp.anchor.setAttribute('aria-expanded', 'false');
+    cp = null;
+  };
+  const dragSurface = (el, cb) => {
+    let id = null;
+    const at = (e) => { const r = el.getBoundingClientRect(); cb(Math.min(1, Math.max(0, (e.clientX - r.left) / (r.width || 1))), Math.min(1, Math.max(0, (e.clientY - r.top) / (r.height || 1)))); };
+    el.addEventListener('pointerdown', (e) => { if (e.button !== 0) return; e.preventDefault(); id = e.pointerId; try { el.setPointerCapture(id); } catch { /* fine */ } at(e); });
+    el.addEventListener('pointermove', (e) => { if (e.pointerId === id) at(e); });
+    const end = (e) => { if (e.pointerId === id) id = null; };
+    el.addEventListener('pointerup', end);
+    el.addEventListener('pointercancel', end);
+  };
+  const openColorPicker = ({ anchor, tokens, currentToken, currentCss, onToken, onCustom }) => {
+    closeColorPicker();
+    closeDropdown();
+    const el = mk('cp ui');
+    el.dataset.cdmUi = '';
+    const c0 = toRGBA(currentCss || '#000');
+    const hsv = rgbToHsv(c0);
+    const col = { h: hsv.h, s: hsv.s, v: hsv.v, a: c0.a };
+    const out = (e) => {
+      const path = e.composedPath ? e.composedPath() : [];
+      if (path.includes(el) || path.includes(anchor) || cp.busy) return;
+      closeColorPicker();
+    };
+    cp = { el, anchor, out, busy: false };
+    el.addEventListener('mousedown', (e) => { if (!(e.target instanceof HTMLInputElement)) e.preventDefault(); });
+
+    const tokenBox = mk('', 'div');
+    if (tokens.length) {
+      const h = mk('cp-h'); h.textContent = 'Colour tokens';
+      const grid = mk('cp-grid');
+      for (const t of tokens) {
+        const b = mk('cp-chip' + (t.name === currentToken ? ' cur' : ''), 'button');
+        b.type = 'button';
+        b.style.background = t.value;
+        b.title = `${t.name.replace(/^--/, '')} · ${t.value}`;
+        b.setAttribute('aria-label', t.name.replace(/^--/, ''));
+        b.addEventListener('click', () => { onToken(t.name); grid.querySelectorAll('.cp-chip').forEach((x) => x.classList.toggle('cur', x === b)); syncCustom(toRGBA(t.value), false); });
+        grid.append(b);
+      }
+      tokenBox.append(h, grid);
+      el.append(tokenBox);
+    }
+    const ch = mk('cp-h'); ch.textContent = 'Custom';
+    const sv = mk('cp-sv'); const svDot = mk('', 'i'); sv.append(svDot);
+    sv.style.backgroundImage = 'linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, transparent)';
+    const hue = mk('cp-bar'); const hueDot = mk('', 'i'); hue.append(hueDot);
+    hue.style.background = 'linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)';
+    const alpha = mk('cp-bar'); const alphaDot = mk('', 'i'); alpha.append(alphaDot);
+    const row = mk('cp-row');
+    const txt = mk('ctl', 'input');
+    txt.type = 'text'; txt.autocomplete = 'off'; txt.spellcheck = false; txt.setAttribute('data-cdm-field', ''); txt.title = 'Hex, rgb(), hsl() or a colour name';
+    row.append(txt);
+    if (window.EyeDropper) {
+      const eye = mk('cp-eye', 'button');
+      eye.type = 'button';
+      eye.title = 'Pick a colour from the screen';
+      eye.setAttribute('aria-label', 'Eyedropper');
+      eye.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 2.5l3 3-1.4 1.4-3-3zM9 5l-6 6v2.5H5.5l6-6"/></svg>';
+      eye.addEventListener('click', async () => {
+        cp.busy = true;
+        try { const r = await new window.EyeDropper().open(); const c = toRGBA(r.sRGBHex); Object.assign(col, rgbToHsv(c), { a: c.a || 1 }); paint(); emit(); } catch { /* cancelled */ }
+        if (cp) cp.busy = false;
+      });
+      row.append(eye);
+    } else row.style.gridTemplateColumns = '1fr';
+    el.append(ch, sv, hue, alpha, row);
+
+    const cur = () => ({ ...hsvToRgb(col.h, col.s, col.v), a: col.a });
+    const paint = (skipText) => {
+      const rgb = hsvToRgb(col.h, 1, 1);
+      sv.style.backgroundColor = `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
+      svDot.style.left = `${col.s * 100}%`; svDot.style.top = `${(1 - col.v) * 100}%`;
+      hueDot.style.left = `${(col.h / 360) * 100}%`;
+      const c = cur();
+      alpha.style.background = `linear-gradient(to right, rgba(${c.r},${c.g},${c.b},0), rgb(${c.r},${c.g},${c.b})), repeating-conic-gradient(#8884 0 25%, transparent 0 50%) 0 0 / 8px 8px`;
+      alphaDot.style.left = `${col.a * 100}%`;
+      if (!skipText) txt.value = rgbaCss(c);
+    };
+    const emit = () => onCustom(rgbaCss(cur()));
+    const syncCustom = (c, doEmit) => { Object.assign(col, rgbToHsv(c), { a: c.a }); paint(); if (doEmit) emit(); };
+    dragSurface(sv, (x, y) => { col.s = x; col.v = 1 - y; paint(); emit(); });
+    dragSurface(hue, (x) => { col.h = Math.min(359.99, x * 360); paint(); emit(); });
+    dragSurface(alpha, (x) => { col.a = Math.round(x * 100) / 100; paint(); emit(); });
+    txt.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'Escape') { e.preventDefault(); closeColorPicker(); if (anchor) anchor.focus(); return; }
+      if (e.key === 'Enter') { e.preventDefault(); txt.dispatchEvent(new Event('change')); }
+    });
+    txt.addEventListener('change', () => {
+      const v = txt.value.trim();
+      if (!v || !supports('color', v)) { txt.classList.add('bad'); setTimeout(() => txt.classList.remove('bad'), 600); txt.value = rgbaCss(cur()); return; }
+      const c = toRGBA(v);
+      Object.assign(col, rgbToHsv(c), { a: c.a });
+      paint(true);
+      onCustom(/^#[0-9a-f]{3,8}$/i.test(v) ? v.toLowerCase() : rgbaCss(c));
+    });
+    paint();
+
+    panel.append(el);
+    const pr = panel.getBoundingClientRect();
+    const ar = anchor.getBoundingClientRect();
+    const w = 244;
+    el.style.left = `${Math.max(8, Math.min(ar.left - pr.left, pr.width - w - 8))}px`;
+    const room = pr.bottom - ar.bottom - 8;
+    const h = el.offsetHeight;
+    if (room >= h || room >= ar.top - pr.top - 8) el.style.top = `${Math.max(8, Math.min(ar.bottom - pr.top + 4, pr.height - h - 8))}px`;
+    else el.style.top = `${Math.max(8, ar.top - pr.top - h - 4)}px`;
+    anchor.setAttribute('aria-expanded', 'true');
+    document.addEventListener('pointerdown', out, true);
+  };
+
   const tipFor = (t) => {
     if (!t) return 'Not set on this element (inherited or default)';
     const chain = t.chain.length ? t.chain.map((c) => c.name.replace(/^--/, '')).join(' → ') + ' → ' + primitiveOf(t) : '';
@@ -2110,15 +2426,25 @@
   // Token picker: a text field with an in-panel dropdown of the page's tokens of one
   // family (swatch + primitive shown). Picking or typing a token previews var(--token);
   // any other text previews the literal and flags it hardcoded.
-  const tokenInput = ({ prop, key, swatch, special }) => {
+  // Numeric families (size, weight, leading, tracking, radius, border width) also take
+  // Up/Down (Shift big, Option fine), - / + steppers and, when `slider` is given, a slider.
+  // Colour fields get a clickable chip that opens the colour picker.
+  // Options: slider { min, max, step, unit, weight, full }, names (token override),
+  // readProp (computed property to read), onChange({ inp, val }) after any write.
+  const NUM_KEYS = new Set(['fontSize', 'fontWeight', 'lineHeight', 'tracking', 'radius', 'borderWidth']);
+  const sideNone = (cs, sd) => cs.getPropertyValue(`border-${sd}-style`) === 'none' || parseFloat(cs.getPropertyValue(`border-${sd}-width`)) === 0;
+  const tokenInput = ({ prop, key, swatch, special, slider: sl, names: nameOverride, readProp, onChange }) => {
+    const rprop = readProp || prop;
     const t = state.traces[prop];
-    const names = (tokenCatalog()[key] || []);
+    const names = nameOverride || (tokenCatalog()[key] || []);
     const idx = customProps();
     const cs = getComputedStyle(state.selectedEl);
-    let current = semanticName(t) || (t ? t.authored : '') || cs.getPropertyValue(prop).trim();
+    const live = () => state.selectedEl;
+    let current = semanticName(t) || (t ? t.authored : '') || cs.getPropertyValue(rprop).trim();
     if (current === 'rgba(0, 0, 0, 0)') current = 'transparent';
     if (swatch) current = rgbToHex(current);
-    const borderless = prop === 'border-color' && noBorder(cs);
+    const bm = /^border(?:-(top|right|bottom|left))?-color$/.exec(prop);
+    const borderless = !!bm && (bm[1] ? sideNone(cs, bm[1]) : noBorder(cs));
     if (borderless) current = 'none';
     // a pending edit is what the field should read: the trace above describes the authored
     // source, so a rebuild (a companion edit forces one) would otherwise snap the field
@@ -2128,7 +2454,15 @@
     if (pv) current = pv.to.token ? pv.to.token.replace(/^--/, '') : (pv.to.label || pv.to.css);
     const wrap = mk(swatch ? 'swatched' : '');
     let sw = null;
-    if (swatch) { sw = mk('sw', 'span'); sw.style.background = borderless ? 'transparent' : cs.getPropertyValue(prop); wrap.append(sw); }
+    if (swatch) {
+      sw = mk('sw', 'button');
+      sw.type = 'button';
+      sw.title = 'Pick a colour';
+      sw.setAttribute('aria-label', 'Pick a colour');
+      sw.setAttribute('aria-haspopup', 'dialog');
+      sw.style.background = borderless ? 'transparent' : cs.getPropertyValue(rprop);
+      wrap.append(sw);
+    }
     // the primitive under a colour field is shown only when it says more than the field itself
     const norm = (v) => {
       const x = rgbToHex(String(v || '').toLowerCase().replace(/\s+/g, '').replace(/^rgba\(0,0,0,0\)$/, 'transparent'));
@@ -2145,19 +2479,110 @@
     const inp = mk('ctl', 'input');
     inp.type = 'text';
     inp.value = current;
-    inp.title = borderless ? 'No border on this element' : tipFor(t);
+    const baseTitle = borderless ? 'No border on this element' : tipFor(t);
+    inp.title = baseTitle;
     inp.autocomplete = 'off';
     inp.spellcheck = false;
     inp.setAttribute('data-cdm-field', '');
-    const items = [
-      ...Object.entries(special || {}).map(([k, v]) => ({ value: k, label: k, primitive: v.css })),
-      ...names.map((n) => { const prim = resolveVar(n, state.selectedEl); return { value: n.replace(/^--/, ''), label: n.replace(/^--/, ''), primitive: prim, swatch: swatch ? prim : null }; }),
-    ];
+    const isWeight = key === 'fontWeight';
+    const numeric = NUM_KEYS.has(key) && !swatch;
     // scales list (and scrub) by value, not by name: xs, sm, base, lg, xl, 2xl...
     const num = (v) => { const m = /^(-?[\d.]+)(rem|em|px|%)?$/.exec(String(v || '').trim()); if (!m) return null; const n = parseFloat(m[1]); return m[2] === 'rem' || m[2] === 'em' ? n * rootFontPx() : n; };
-    if (SCALE_KEYS.has(key)) {
-      if (items.filter((it) => num(it.primitive) !== null).length >= 2) items.sort((a, b) => (num(a.primitive) ?? Infinity) - (num(b.primitive) ?? Infinity));
-    }
+    const buildItems = () => {
+      let list = [
+        ...Object.entries(special || {}).map(([k, v]) => ({ value: k, label: k, primitive: v.css })),
+        ...names.map((n) => { const prim = resolveVar(n, state.selectedEl); return { value: n.replace(/^--/, ''), label: n.replace(/^--/, ''), primitive: prim, swatch: swatch ? prim : null }; }),
+      ];
+      if (isWeight) {
+        // offer the weights this font really has; the full range only when that is unknown
+        const set = weightSet(state.selectedEl);
+        if (set) list = list.filter((it) => { const w = parseFloat(it.primitive); return !Number.isFinite(w) || set.includes(w) || it.value === current; });
+        const have = new Set(list.map((it) => parseFloat(it.primitive)));
+        for (const w of weightsFor(state.selectedEl)) if (!have.has(w)) list.push({ value: String(w), label: String(w), primitive: '' });
+        list.sort((a, b) => (parseFloat(a.primitive) || parseFloat(a.label) || 0) - (parseFloat(b.primitive) || parseFloat(b.label) || 0));
+      } else if (SCALE_KEYS.has(key) && list.filter((it) => num(it.primitive) !== null).length >= 2) {
+        list.sort((a, b) => (num(a.primitive) ?? Infinity) - (num(b.primitive) ?? Infinity));
+      }
+      return list;
+    };
+    let items = buildItems();
+
+    // ---- numeric reading, stepping and writing
+    const startVal = () => {
+      const txt = inp.value.trim();
+      let v = parseVal(txt);
+      if (!v && txt) { const nm = txt.startsWith('--') ? txt : `--${txt}`; if (idx[nm] !== undefined) v = parseVal(resolveVar(nm, live())); }
+      if (!v && txt === 'full') v = { n: 48, u: 'px' };
+      if (!v && txt === 'none') v = { n: 0, u: 'px' };
+      if (!v) {
+        const c = getComputedStyle(live());
+        if (isWeight) v = { n: parseFloat(c.fontWeight) || 400, u: '' };
+        else if (key === 'lineHeight') { const lh = parseFloat(c.lineHeight); v = Number.isFinite(lh) ? { n: Math.round((lh / (parseFloat(c.fontSize) || 16)) * 1000) / 1000, u: '' } : { n: 1.2, u: '' }; }
+        else { const n = parseFloat(c.getPropertyValue(rprop)); v = { n: Number.isFinite(n) ? n : 0, u: 'px' }; }
+      }
+      if (!isWeight && !v.u && key !== 'lineHeight') v = { n: v.n, u: 'px' };
+      // radius and border width step in whole pixels, whatever unit a token resolves to
+      if ((key === 'radius' || key === 'borderWidth') && (v.u === 'rem' || v.u === 'em')) v = { n: Math.round(valPx(v, live()) * 100) / 100, u: 'px' };
+      return v;
+    };
+    const matchToken = (v) => names.find((n) => { const p = parseVal(resolveVar(n, live())); return p && sameVal(p, v, live()); }) || null;
+    let sliderApi = null; let srow = null; let fullBtn = null; let hint = null; let before = null;
+    const isFull = () => inp.value === 'full' || parseFloat(getComputedStyle(live()).borderTopLeftRadius) >= 9999;
+    const updateSlider = (v) => {
+      if (!sliderApi) return;
+      if (isWeight) {
+        const wl = weightsFor(live());
+        srow.style.display = wl.length > 1 ? '' : 'none';
+        sliderApi.range(0, wl.length - 1, 1);
+        sliderApi.set(wl.indexOf(nearestIn(wl, v.n)));
+        return;
+      }
+      if (sl.unit === '' ? v.u !== '' : v.u === '%') { srow.style.display = 'none'; return; }
+      srow.style.display = '';
+      const full = !!sl.full && isFull();
+      sliderApi.set(full ? sl.max : Math.min(sl.max, Math.max(sl.min, sl.unit === '' ? v.n : valPx(v, live()))));
+      if (fullBtn) fullBtn.classList.toggle('on', full);
+    };
+    const weightHint = (w) => {
+      const set = weightSet(live());
+      const bad = !!set && !set.includes(w);
+      inp.classList.toggle('warn', bad);
+      inp.title = bad ? `This font has no ${w} weight; it renders as ${renderedWeight(w, set)}` : baseTitle;
+      if (hint) { hint.style.display = bad ? '' : 'none'; hint.title = inp.title; }
+    };
+    const sync = () => {
+      let val = null;
+      if (numeric) {
+        val = startVal();
+        updateSlider(val);
+        if (isWeight) weightHint(val.n);
+      }
+      if (onChange) onChange({ inp, val });
+    };
+    const writeNum = (vIn) => {
+      let { n } = vIn;
+      if (isWeight) n = Math.min(900, Math.max(100, Math.round(n)));
+      else if (key !== 'tracking') n = Math.max(0, n);
+      const css = fmtNum(n) + vIn.u;
+      const tk = matchToken({ n, u: vIn.u });
+      if (tk) {
+        applyPreview(prop, `var(${tk})`, { token: tk, primitive: resolveVar(tk, live()) });
+        inp.value = tk.replace(/^--/, '');
+      } else {
+        applyPreview(prop, css, { primitive: css });
+        inp.value = css;
+      }
+      current = inp.value;
+      sync();
+    };
+    const stepNum = (dir, mod) => {
+      closeDropdown();
+      const v = startVal();
+      if (isWeight) { writeNum({ n: stepWeight(v.n, dir, live(), mod === 'shift' ? 3 : 1), u: '' }); return; }
+      const z = stepSizes(v.u);
+      writeNum({ n: v.n + dir * (mod === 'shift' ? z.big : mod === 'alt' ? z.alt : z.step), u: v.u });
+    };
+
     const commit = (rawIn) => {
       const raw = rawIn.trim();
       if (!raw || raw === current) { inp.value = current; return; }
@@ -2181,10 +2606,11 @@
         inp.value = lit;
       }
       current = inp.value;
+      sync();
     };
     const mine = () => dd && dd.anchor === inp;
     const emptyText = `No matching token. Enter keeps what you typed${key === 'color' || key === 'fontFamily' || key === 'shadow' ? ' as a literal (hardcoded)' : ' (hardcoded)'}`;
-    const open = () => openDropdown({ anchor: inp, items, current, emptyText, onPick: (it) => { inp.value = it.value; commit(it.value); closeDropdown(); inp.blur(); } });
+    const open = () => { if (isWeight) items = buildItems(); openDropdown({ anchor: inp, items, current, emptyText, onPick: (it) => { inp.value = it.value; commit(it.value); closeDropdown(); inp.blur(); } }); };
     inp.addEventListener('focus', () => { if (!mine()) open(); });
     inp.addEventListener('click', () => { if (!mine()) open(); });
     dblclickReset(inp, prop);
@@ -2195,8 +2621,8 @@
       inp.addEventListener('pointerdown', () => {
         let i = items.findIndex((it) => it.value === current);
         if (i < 0) { // literal value: seed from the nearest token by size
-          const n = num(cs.getPropertyValue(prop)); let best = 0; let bd = Infinity;
-          items.forEach((it, k) => { const v = num(it.primitive); if (v !== null && n !== null && Math.abs(v - n) < bd) { bd = Math.abs(v - n); best = k; } });
+          const n = isWeight ? startVal().n : num(cs.getPropertyValue(rprop)); let best = 0; let bd = Infinity;
+          items.forEach((it, k) => { const v = isWeight ? (parseFloat(it.primitive) || parseFloat(it.label)) : num(it.primitive); if (v !== null && n !== null && Math.abs(v - n) < bd) { bd = Math.abs(v - n); best = k; } });
           i = best;
         }
         base = i;
@@ -2209,23 +2635,78 @@
         },
         onClick: () => { inp.focus(); if (!mine()) open(); },
       });
+    } else if (numeric) {
+      inp.classList.add('scale');
+      let base = null;
+      inp.addEventListener('pointerdown', () => { base = startVal(); }, true);
+      scrub(inp, {
+        step: 2,
+        onDelta: (steps) => { const z = stepSizes(base.u); writeNum({ n: base.n + steps * z.step, u: base.u }); },
+        onClick: () => { inp.focus(); if (!mine()) open(); },
+      });
     }
     inp.addEventListener('input', () => { if (!mine()) open(); dd.setFilter(inp.value); });
     inp.addEventListener('change', () => commit(inp.value));
     inp.addEventListener('keydown', (e) => {
       e.stopPropagation();
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); if (!mine()) open(); dd.move(e.key === 'ArrowDown' ? 1 : -1); return; }
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        const dir = e.key === 'ArrowUp' ? 1 : -1;
+        // numeric fields step the value; with the list hovered or filtered by typing, arrows walk the list
+        if (numeric && !(mine() && (dd.navigated || dd.filter))) { stepNum(dir, e.shiftKey ? 'shift' : e.altKey ? 'alt' : ''); return; }
+        if (!mine()) open();
+        dd.move(-dir);
+        return;
+      }
       if (e.key === 'Enter') { e.preventDefault(); if (mine() && dd.hl >= 0 && dd.shown[dd.hl] && dd.shown[dd.hl].value !== inp.value && dd.pickHighlighted()) return; commit(inp.value); closeDropdown(); inp.blur(); return; }
       if (e.key === 'Escape') { e.preventDefault(); inp.value = current; closeDropdown(); inp.blur(); return; }
       if (e.key === 'Tab') closeDropdown();
     });
-    wrap.append(inp);
+    if (numeric) {
+      const fld = withStepper(inp, stepNum);
+      wrap.className = 'fs';
+      if (isWeight) { hint = hcGlyph('This font has no such weight'); hint.style.display = 'none'; fld.append(hint); }
+      wrap.append(fld);
+      if (sl) {
+        srow = mk('srow' + (sl.full ? ' has-full' : ''));
+        const wl = isWeight ? weightsFor(live()) : null;
+        sliderApi = slider(isWeight
+          ? { min: 0, max: wl.length - 1, step: 1, title: 'Weight', onInput: (i) => writeNum({ n: weightsFor(live())[i], u: '' }) }
+          : { min: sl.min, max: sl.max, step: sl.step, title: sl.title || '', onInput: (v) => writeNum({ n: v, u: sl.unit }) });
+        srow.append(sliderApi.node);
+        if (sl.full) {
+          fullBtn = mk('minibtn', 'button');
+          fullBtn.type = 'button';
+          fullBtn.textContent = 'Full';
+          fullBtn.title = 'Fully rounded (pill). Click again to go back';
+          fullBtn.addEventListener('mousedown', (e) => e.preventDefault());
+          fullBtn.addEventListener('click', () => { if (isFull()) writeNum(before || { n: 8, u: 'px' }); else { before = startVal(); commit('full'); } });
+          srow.append(fullBtn);
+        }
+        wrap.append(srow);
+      }
+      updateSlider(startVal());
+      if (isWeight) weightHint(startVal().n);
+    } else wrap.append(inp);
     if (swatch) {
+      const curToken = () => { const nm = `--${inp.value.replace(/^--/, '')}`; return idx[nm] !== undefined ? nm : null; };
+      sw.addEventListener('click', () => {
+        if (cp && cp.anchor === sw) { closeColorPicker(); return; }
+        const tokens = names.map((n) => ({ name: n, value: resolveVar(n, live()) })).filter((x) => x.value);
+        openColorPicker({
+          anchor: sw,
+          tokens,
+          currentToken: curToken(),
+          currentCss: getComputedStyle(live()).getPropertyValue(rprop),
+          onToken: (n) => commit(n.replace(/^--/, '')),
+          onCustom: (css) => commit(css),
+        });
+      });
       const prim = mk('prim');
       wrap.append(prim);
-      setPrim(primitiveOf(t, cs.getPropertyValue(prop).trim()));
+      setPrim(primitiveOf(t, cs.getPropertyValue(rprop).trim()));
     }
-    return { node: wrap, hardcoded: !!t && t.status === 'hardcoded', tip: tipFor(t) };
+    return { node: wrap, hardcoded: !!t && t.status === 'hardcoded', tip: tipFor(t), inp, sync, val: startVal, write: writeNum, setText: (txt) => { inp.value = txt; current = txt; sync(); } };
   };
 
   // Select-like control: a button that opens the same in-panel dropdown.
@@ -2297,9 +2778,161 @@
       if (inp.value.trim() === '' || Number.isNaN(parsed)) { inp.value = String(livePx()); return; } // blank or junk: leave it alone
       setPx(parsed);
     });
-    wrap.append(inp, u);
+    wrap.append(nudgeStepper(inp, { nudge: (by) => setPx((parseFloat(inp.value) || 0) + by), step: 1, bigStep: spacingBasePx() || 10 }), u);
     const t = state.traces[prop];
     return { node: wrap, hardcoded: !!t && t.status === 'hardcoded', tip: tipFor(t) };
+  };
+
+
+  /* ------------------------------------------- radius and border controls --- */
+
+  const CORNERS = ['top-left', 'top-right', 'bottom-right', 'bottom-left'];
+  const CORNER_CLS = ['tl', 'tr', 'br', 'bl'];
+  const CORNER_ICON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6V4.5a2 2 0 0 1 2-2H6M10 2.5h1.5a2 2 0 0 1 2 2V6M13.5 10v1.5a2 2 0 0 1-2 2H10M6 13.5H4.5a2 2 0 0 1-2-2V10"/></svg>';
+
+  // Radius: one linked field + slider (+ Full) for all corners, and a toggle for four corner
+  // inputs around a small square. Equal corners write `border-radius: Npx` (or a token);
+  // different corners write the four-value shorthand, one pending change either way.
+  const radiusRow = () => {
+    const cornerPx = () => { const c = getComputedStyle(state.selectedEl); return CORNERS.map((k) => parseFloat(c.getPropertyValue(`border-${k}-radius`)) || 0); };
+    let open = state.radiusCorners || cornerPx().some((v, _, a) => v !== a[0]);
+    const wrap = mk('rc');
+    const top = mk('rc-top');
+    const diag = mk('rcd');
+    const sq = mk('sq');
+    diag.append(sq);
+    const fields = [];
+    const cText = (v) => (v >= 9999 ? 'full' : fmtNum(v));
+    const cNum = (f) => (f.value.trim() === 'full' ? 48 : parseFloat(f.value) || 0);
+    const paintCorners = () => {
+      const v = cornerPx();
+      fields.forEach((f, i) => { if (shadow.activeElement !== f) f.value = cText(v[i]); });
+      sq.style.borderRadius = v.map((x) => `${Math.min(x, 40)}px`).join(' ');
+    };
+    const tkr = tokenInput({
+      prop: 'border-radius',
+      key: 'radius',
+      special: { full: { css: 'calc(infinity * 1px)' }, none: { css: '0px' } },
+      slider: { min: 0, max: 48, step: 1, unit: 'px', full: true, title: 'Radius' },
+      onChange: () => paintCorners(),
+    });
+    const writeCorners = (vals) => {
+      if (vals.every((v) => v === vals[0])) { tkr.write({ n: vals[0], u: 'px' }); return; }
+      const css = vals.map((v) => `${fmtNum(v)}px`).join(' ');
+      applyPreview('border-radius', css, { primitive: css });
+      tkr.setText(css);
+    };
+    CORNERS.forEach((k, i) => {
+      const f = mk(`ctl rcn ${CORNER_CLS[i]}`, 'input');
+      f.type = 'text'; f.inputMode = 'numeric'; f.autocomplete = 'off';
+      f.title = `${k.replace('-', ' ')} corner radius (arrows, or drag to scrub)`;
+      f.setAttribute('data-cdm-field', '');
+      const setCorner = (v) => {
+        const vals = fields.map((x) => (x.value.trim() === 'full' ? 9999 : parseFloat(x.value) || 0));
+        vals[i] = Math.max(0, v);
+        writeCorners(vals);
+        f.value = cText(vals[i]);
+      };
+      let base = 0;
+      f.addEventListener('pointerdown', () => { base = cNum(f); }, true);
+      scrub(f, { step: 1, onDelta: (steps) => setCorner(base + steps), onClick: () => { f.focus(); f.select(); } });
+      numericKeys(f, { reset: () => { f.blur(); paintCorners(); }, step: 1, bigStep: 10, altStep: 0.1, nudge: (by) => setCorner(cNum(f) + by) });
+      dblclickReset(f, 'border-radius');
+      f.addEventListener('change', () => {
+        const n = parseFloat(f.value);
+        if (f.value.trim() === '' || Number.isNaN(n)) { paintCorners(); return; }
+        setCorner(n);
+      });
+      fields.push(f);
+      diag.append(f);
+    });
+    const tgl = mk('tgl' + (open ? ' on' : ''), 'button');
+    tgl.type = 'button';
+    tgl.innerHTML = CORNER_ICON;
+    const tglTitle = () => (open ? 'Editing each corner. Click to edit all corners together' : 'Click to edit each corner separately');
+    tgl.title = tglTitle();
+    tgl.setAttribute('aria-pressed', String(open));
+    tgl.addEventListener('click', () => {
+      open = !open;
+      state.radiusCorners = open;
+      tgl.classList.toggle('on', open);
+      tgl.setAttribute('aria-pressed', String(open));
+      tgl.title = tglTitle();
+      diag.style.display = open ? '' : 'none';
+      if (open) paintCorners();
+    });
+    diag.style.display = open ? '' : 'none';
+    paintCorners();
+    top.append(tkr.node, tgl);
+    wrap.append(top, diag);
+    return row('Radius', wrap, { hardcoded: tkr.hardcoded, tip: tkr.tip, props: ['border-radius'] });
+  };
+
+  // length tokens small enough to be a border width
+  const borderWidthNames = () => {
+    const cat = tokenCatalog();
+    return [...new Set([...(cat.radius || []), ...(cat.spacing || [])])].filter((n) => { const p = parseVal(resolveVar(n)); if (!p) return false; const px = valPx(p); return px >= 0 && px <= 12; });
+  };
+  // Border: side selector, width (field + slider + arrows), style, colour. Picking a width
+  // above 0 on a side with no border style turns on a solid style (and the other way round),
+  // so a change is never invisible.
+  const borderRows = () => {
+    const side = state.borderSide;
+    const pre = side === 'all' ? 'border' : `border-${side}`;
+    const wProp = `${pre}-width`; const sProp = `${pre}-style`; const cProp = `${pre}-color`;
+    const sd = side === 'all' ? 'top' : side;
+    const elx = state.selectedEl;
+    const cs = getComputedStyle(elx);
+    const head = mk('sub-h');
+    head.textContent = 'Border';
+    const sideSeg = mk('seg');
+    for (const [v, ic, tt] of [['all', 'bd-all', 'All sides'], ['top', 'bd-top', 'Top'], ['right', 'bd-right', 'Right'], ['bottom', 'bd-bottom', 'Bottom'], ['left', 'bd-left', 'Left']]) {
+      const b = mk(v === side ? 'on' : '', 'button');
+      b.type = 'button';
+      b.innerHTML = svg(ic);
+      b.title = tt;
+      b.setAttribute('aria-label', tt);
+      b.addEventListener('click', () => { if (state.borderSide === v) return; state.borderSide = v; renderPanel(state.selectedEl, true); });
+      sideSeg.append(b);
+    }
+    let styleSeg = null;
+    let widthCtl = null;
+    const ensureSolid = () => {
+      const now = getComputedStyle(state.selectedEl).getPropertyValue(`border-${sd}-style`);
+      if (now === 'none' || now === 'hidden') { applyPreview(sProp, 'solid', { label: 'solid', primitive: 'solid', system: true }); if (styleSeg) styleSeg._set('solid'); }
+    };
+    widthCtl = tokenInput({
+      prop: wProp,
+      key: 'borderWidth',
+      names: borderWidthNames(),
+      readProp: `border-${sd}-width`,
+      slider: { min: 0, max: 12, step: 1, unit: 'px', title: 'Border width' },
+      onChange: ({ val }) => { if (val && valPx(val, state.selectedEl) > 0) ensureSolid(); },
+    });
+    styleSeg = segmented({
+      prop: sProp,
+      current: cs.getPropertyValue(`border-${sd}-style`),
+      options: ['none', 'solid', 'dashed', 'dotted'].map((v) => ({ value: v, label: v, text: true })),
+      onPick: (v) => { if (v !== 'none' && valPx(widthCtl.val(), state.selectedEl) === 0) widthCtl.write({ n: 1, u: 'px' }); },
+    });
+    const colorCtl = tokenInput({
+      prop: cProp,
+      key: 'color',
+      swatch: true,
+      readProp: `border-${sd}-color`,
+      onChange: () => {
+        if (!sideNone(getComputedStyle(state.selectedEl), sd)) return;
+        ensureSolid();
+        if (valPx(widthCtl.val(), state.selectedEl) === 0) widthCtl.write({ n: 1, u: 'px' });
+      },
+    });
+    return [
+      head,
+      row('Side', sideSeg),
+      row('Width', widthCtl.node, { hardcoded: widthCtl.hardcoded, tip: widthCtl.tip, props: [wProp] }),
+      row('Style', styleSeg, { props: [sProp] }),
+      row('Color', colorCtl.node, { hardcoded: colorCtl.hardcoded, tip: colorCtl.tip, props: [cProp] }),
+    ];
   };
 
   const section = (title, rows, actions = []) => {
@@ -2489,6 +3122,7 @@
 
   const renderPanel = (target, keepScroll = false) => {
     closeDropdown();
+    closeColorPicker();
     const scrollTop = keepScroll ? panelScroll.scrollTop : 0;
     const fiber = findFiber(target);
     const chain = fiber ? componentChain(fiber) : [];
@@ -2597,8 +3231,8 @@
     const typography = [
       tk('Font', { prop: 'font-family', key: 'fontFamily' }),
       tk('Size', { prop: 'font-size', key: 'fontSize' }),
-      tk('Weight', { prop: 'font-weight', key: 'fontWeight' }),
-      tk('Leading', { prop: 'line-height', key: 'lineHeight' }),
+      tk('Weight', { prop: 'font-weight', key: 'fontWeight', slider: { weight: true } }),
+      tk('Leading', { prop: 'line-height', key: 'lineHeight', slider: { min: 0.8, max: 2.5, step: 0.05, unit: '', title: 'Line height (unitless)' } }),
       tk('Tracking', { prop: 'letter-spacing', key: 'tracking' }),
       tk('Color', { prop: 'color', key: 'color', swatch: true }),
       row('Align', segmented({ prop: 'text-align', current: cs.textAlign, map: { start: 'left', end: 'right', '-webkit-left': 'left', '-webkit-center': 'center', '-webkit-right': 'right' }, options: [
@@ -2607,12 +3241,14 @@
     ];
     const opacityIn = mk('ctl num', 'input');
     opacityIn.type = 'text'; opacityIn.inputMode = 'numeric';
-    const opStart = () => Math.round(parseFloat(getComputedStyle(state.selectedEl).opacity) * 100);
+    const opStart = () => { const o = parseFloat(getComputedStyle(state.selectedEl).opacity); return Math.round((Number.isFinite(o) ? o : 1) * 1000) / 10; };
     opacityIn.value = String(opStart());
+    const opSlider = slider({ min: 0, max: 100, step: 1, title: 'Opacity', onInput: (v) => setOpacity(v) });
     const setOpacity = (vIn) => {
-      const v = Math.min(100, Math.max(0, Math.round(vIn)));
-      applyPreview('opacity', String(v / 100), { label: `${v}%`, primitive: String(v / 100), system: true });
-      opacityIn.value = String(v);
+      const v = Math.min(100, Math.max(0, Math.round(vIn * 10) / 10)); // Option steps by a tenth of a percent
+      applyPreview('opacity', fmtNum(v / 100), { label: `${fmtNum(v)}%`, primitive: fmtNum(v / 100), system: true });
+      opacityIn.value = fmtNum(v);
+      opSlider.set(v);
     };
     let opBase = 100;
     opacityIn.addEventListener('pointerdown', () => { opBase = opStart(); }, true);
@@ -2621,7 +3257,8 @@
       onDelta: (steps) => setOpacity(opBase + steps),
       onClick: () => { opacityIn.focus(); opacityIn.select(); openNumericOptions(opacityIn, [0, 5, 10, 20, 25, 30, 40, 50, 60, 70, 75, 80, 90, 95, 100].map((v) => ({ value: v, label: `${v}%` })), opStart(), setOpacity, 'No preset. Enter keeps the value (0 to 100)'); },
     });
-    numericKeys(opacityIn, { reset: () => { opacityIn.value = String(opStart()); }, step: 1, bigStep: 10, nudge: (by) => setOpacity((parseFloat(opacityIn.value) || 0) + by) });
+    const opNudge = (by) => setOpacity((parseFloat(opacityIn.value) || 0) + by);
+    numericKeys(opacityIn, { reset: () => { opacityIn.value = String(opStart()); opSlider.set(opStart()); }, step: 1, bigStep: 10, altStep: 0.1, nudge: opNudge });
     dblclickReset(opacityIn, 'opacity');
     opacityIn.addEventListener('input', () => { if (dd && dd.anchor === opacityIn) dd.setFilter(opacityIn.value); });
     opacityIn.addEventListener('change', () => {
@@ -2629,11 +3266,16 @@
       if (opacityIn.value.trim() === '' || Number.isNaN(parsed)) { opacityIn.value = String(opStart()); return; }
       setOpacity(parsed);
     });
-    const opWrap = mk('unit'); const pct = mk('u', 'span'); pct.textContent = '%'; opWrap.append(opacityIn, pct);
+    opSlider.set(opStart());
+    const opWrap = mk('fs');
+    const opTop = mk('unit'); const pct = mk('u', 'span'); pct.textContent = '%';
+    opTop.append(nudgeStepper(opacityIn, { nudge: opNudge, step: 1, bigStep: 10, altStep: 0.1 }), pct);
+    const opRow = mk('srow'); opRow.append(opSlider.node);
+    opWrap.append(opTop, opRow);
     const appearance = [
       tk('Fill', { prop: 'background-color', key: 'color', swatch: true }),
-      tk('Radius', { prop: 'border-radius', key: 'radius', special: { full: { css: 'calc(infinity * 1px)' }, none: { css: '0px' } } }),
-      tk('Border', { prop: 'border-color', key: 'color', swatch: true }),
+      radiusRow(),
+      ...borderRows(),
       tk('Shadow', { prop: 'box-shadow', key: 'shadow', special: { none: { css: 'none' } } }),
       row('Opacity', opWrap, { props: ['opacity'] }),
     ];
@@ -2775,6 +3417,7 @@
     state.bcEl = null;
     state.refreshSubmit = null;
     closeDropdown();
+    closeColorPicker();
     closeCommitModal();
     closeChildMenu();
     state.promptOpen = false;
@@ -2903,9 +3546,53 @@
 
   /* ------------------------------------------------------------- events --- */
 
+  // Option held: reach what the pointer cannot hit. Every element stacked at the point (plus
+  // what sits inside their trees, pointer-events:none included) is a candidate; the deepest
+  // one whose box holds the point wins, ignoring empty transparent cover layers.
+  const SKIP_TAGS = /^(SCRIPT|STYLE|TEMPLATE|NOSCRIPT|LINK|META|HEAD|TITLE)$/;
+  const MEDIA_TAGS = /^(IMG|SVG|VIDEO|CANVAS|INPUT|TEXTAREA|SELECT|IFRAME|PICTURE|OBJECT|EMBED)$/;
+  const isCover = (n, cstyle) => {
+    if (n.children.length || MEDIA_TAGS.test(n.tagName)) return false;
+    if (!/^(absolute|fixed)$/.test(cstyle.position)) return false;
+    if ([...n.childNodes].some((c) => c.nodeType === 3 && c.textContent.trim())) return false;
+    if (cstyle.backgroundImage !== 'none') return false;
+    const bg = toRGBA(cstyle.backgroundColor);
+    if (bg.a > 0) return false;
+    return ['Top', 'Right', 'Bottom', 'Left'].every((sd) => cstyle[`border${sd}Style`] === 'none' || parseFloat(cstyle[`border${sd}Width`]) === 0);
+  };
+  const pierceAt = (x, y) => {
+    const hits = document.elementsFromPoint(x, y).filter((n) => !isOurs(n) && n !== document.documentElement && n !== document.body);
+    if (!hits.length) return null;
+    const set = new Set(hits);
+    const roots = hits.filter((n) => !set.has(n.parentElement));
+    const cands = [];
+    let budget = 3000;
+    for (const root of roots) {
+      let depth0 = 0;
+      for (let a = root.parentElement; a; a = a.parentElement) depth0++;
+      const stack = [[root, depth0]];
+      while (stack.length && budget-- > 0) {
+        const [n, d] = stack.pop();
+        if (SKIP_TAGS.test(n.tagName) || isOurs(n)) continue;
+        const r = n.getBoundingClientRect();
+        if (r.width > 0 && r.height > 0 && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) {
+          const cstyle = getComputedStyle(n);
+          if (cstyle.display !== 'none' && cstyle.visibility !== 'hidden') cands.push({ n, d, area: r.width * r.height, cover: isCover(n, cstyle) });
+        }
+        for (const c of n.children) stack.push([c, d + 1]);
+      }
+    }
+    const real = cands.filter((c) => !c.cover);
+    const pool = real.length ? real : cands;
+    pool.sort((a, b) => b.d - a.d || a.area - b.area);
+    return pool.length ? pool[0].n : hits[0];
+  };
+  const targetAt = (x, y, alt) => (alt ? pierceAt(x, y) : null) || document.elementFromPoint(x, y);
+
   const onMove = (e) => {
+    state.lastPtr = { x: e.clientX, y: e.clientY };
     if (!inspecting()) return;
-    const t = document.elementFromPoint(e.clientX, e.clientY);
+    const t = targetAt(e.clientX, e.clientY, e.altKey);
     if (!t || isOurs(t) || t === document.documentElement || t === document.body) {
       hi.style.display = 'none';
       hiLabel.style.display = 'none';
@@ -2933,12 +3620,8 @@
     e.stopImmediatePropagation();
     if (e.type !== 'click') return;
     if (e.detail === 0 && e.clientX === 0 && e.clientY === 0) return; // keyboard-synthesised click: nothing at (0,0) to pick
-    let t = document.elementFromPoint(e.clientX, e.clientY);
+    const t = targetAt(e.clientX, e.clientY, e.altKey); // Option+click selects exactly what Option-hover showed
     if (!t || isOurs(t) || t === document.body || t === document.documentElement) return;
-    if (e.altKey) { // Alt+click: the parent of what is under the pointer
-      const base = (state.hoverEl && state.hoverEl.isConnected) ? state.hoverEl : t;
-      t = base.parentElement && base.parentElement !== document.body ? base.parentElement : base;
-    }
     openPrompt(t);
   };
   const clearHover = () => { hi.style.display = 'none'; hiLabel.style.display = 'none'; state.hoverEl = null; };
@@ -2949,6 +3632,63 @@
   const isTextEntry = (n) => n instanceof Element && (n.tagName === 'TEXTAREA' || n.isContentEditable
     || (n.tagName === 'INPUT' && !/^(button|checkbox|radio|range|color|file|submit|reset|image)$/i.test(n.type || 'text')));
   const inOurUI = (n) => isOurs(n) || (n && n.getRootNode && n.getRootNode() === shadow);
+
+  // ---- keyboard navigation of the selection
+  // Tap Option: first child. Tap Control: parent (never body). Tab / Shift+Tab: next / previous
+  // sibling, no wrap. A tap is the key going down and up inside 400ms with nothing else pressed or
+  // clicked in between, so Option held for Option+Arrow nudges never counts. None of it fires while
+  // the user is typing in the page, a sidebar field, a popover or the Ask Claude box.
+  const meaningful = (n) => {
+    if (!(n instanceof Element) || isOurs(n) || SKIP_TAGS.test(n.tagName) || n.hidden) return false;
+    const c = getComputedStyle(n);
+    if (c.display === 'none' || c.visibility === 'hidden') return false;
+    const r = n.getBoundingClientRect();
+    return r.width > 0 && r.height > 0;
+  };
+  const navTo = (n) => {
+    if (!n || !n.isConnected) return;
+    const r = n.getBoundingClientRect();
+    if (r.bottom < 0 || r.top > innerHeight) n.scrollIntoView({ block: 'nearest' });
+    openPrompt(n, { keepScroll: true });
+  };
+  const navTarget = (kind) => {
+    const sel = state.selectedEl;
+    if (!sel || !sel.isConnected) return null;
+    if (kind === 'child') return [...sel.children].find(meaningful) || null;
+    if (kind === 'parent') { const p = sel.parentElement; return p && p !== document.body && p !== document.documentElement ? p : null; }
+    let n = kind === 'next' ? sel.nextElementSibling : sel.previousElementSibling;
+    while (n && !meaningful(n)) n = kind === 'next' ? n.nextElementSibling : n.previousElementSibling;
+    return n;
+  };
+  const typingNow = (origin) => cp || dd || modal || confirmEl || (origin instanceof Element && ((inOurUI(origin) && origin.matches('input, textarea, select, [data-cdm-field]')) || isTextEntry(origin)));
+  let tap = null;
+  const refreshHover = (altKey) => {
+    if (!state.lastPtr || !inspecting()) return;
+    state.hoverEl = null;
+    onMove({ clientX: state.lastPtr.x, clientY: state.lastPtr.y, altKey });
+  };
+  document.addEventListener('keydown', (e) => {
+    if (!state.active) return;
+    if (e.key === 'Alt' || e.key === 'Control') {
+      const others = e.key === 'Alt' ? (e.ctrlKey || e.metaKey || e.shiftKey) : (e.altKey || e.metaKey || e.shiftKey);
+      tap = !e.repeat && !others && state.promptOpen ? { key: e.key, t: performance.now() } : null;
+      if (e.key === 'Alt' && !e.repeat) refreshHover(true);
+    } else tap = null; // any other key spoils the tap
+  }, true);
+  document.addEventListener('keyup', (e) => {
+    if (!state.active) return;
+    if (e.key === 'Alt') refreshHover(false);
+    if (!tap || e.key !== tap.key) return;
+    const ok = performance.now() - tap.t < 400;
+    tap = null;
+    if (!ok || !state.promptOpen) return;
+    const origin = e.composedPath ? e.composedPath()[0] : e.target;
+    if (typingNow(origin)) return;
+    const n = navTarget(e.key === 'Alt' ? 'child' : 'parent');
+    if (n) navTo(n);
+  }, true);
+  document.addEventListener('pointerdown', () => { tap = null; }, true);
+  window.addEventListener('blur', () => { tap = null; });
   const onKey = (e) => {
     const origin = e.composedPath ? e.composedPath()[0] : e.target;
     // Cmd+D on Mac, Ctrl+D elsewhere (Ctrl+D is delete-forward in Mac text fields); never while typing
@@ -2962,6 +3702,13 @@
     }
     if (!state.active) return;
     if (origin && origin.hasAttribute && origin.hasAttribute('data-cdm-field')) return; // panel fields handle their own keys
+    if (e.key === 'Tab' && !e.ctrlKey && !e.metaKey && !e.altKey && state.promptOpen && state.selectedEl && !inOurUI(origin) && !typingNow(origin) && !childMenu) {
+      e.preventDefault(); // focus stays where it is; the page never sees the key
+      e.stopImmediatePropagation();
+      const n = navTarget(e.shiftKey ? 'prev' : 'next');
+      if (n) navTo(n);
+      return;
+    }
     // Enter from the page (nothing of ours focused) opens the Ask Claude section; inside the
     // sidebar Enter belongs to whatever is focused (buttons activate, fields commit)
     if (e.key === 'Enter' && state.promptOpen && state.promptOpenSection && !e.isComposing && !modal && !inOurUI(origin) && !isTextEntry(origin)) {
@@ -2975,6 +3722,7 @@
       e.preventDefault();
       e.stopImmediatePropagation();
       if (confirmEl) closeConfirm();
+      else if (cp) closeColorPicker();
       else if (dd) closeDropdown();
       else if (modal) closeCommitModal();
       else if (childMenu) closeChildMenu();
