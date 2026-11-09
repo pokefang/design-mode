@@ -362,7 +362,10 @@
     .cp-eye svg { width: 14px; height: 14px; display: block; }
     .unit { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px; min-width: 0; }
     .unit .u { color: var(--tx-mut); font-size: 10px; white-space: nowrap; }
-    .swatched { display: grid; grid-template-columns: auto 1fr; gap: 6px; align-items: center; min-width: 0; }
+    .swatched { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; min-width: 0; }
+    .swatched > .sw { position: absolute; left: 6px; top: 5px; z-index: 1; }
+    .swatched .ctl { padding-left: 28px; }
+    .swatched > .prim { grid-column: 1; padding-left: 28px; }
     .sw { width: 16px; height: 16px; border-radius: 4px; border: 1px solid var(--bd-ctl); }
     .prim { color: var(--tx-mut); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; grid-column: 2; margin-top: -1px; }
     .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ac-tx); display: inline-block; flex: none; }
