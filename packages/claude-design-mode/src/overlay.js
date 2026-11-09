@@ -399,6 +399,8 @@
     .tray-foot select.ctl { width: auto; height: 26px; flex: 1; min-width: 0; }
     .tray-status { color: var(--tx-mut); font-size: 10.5px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
     .tray-status button { background: none; border: none; color: var(--ac-tx); padding: 0; font-size: 10.5px; }
+    .tip { position: fixed; display: none; pointer-events: none; z-index: 5; max-width: 230px; background: var(--bg); color: var(--tx); border: 1px solid var(--bd-ctl); border-radius: 6px; box-shadow: 0 8px 24px var(--sh-md); padding: 6px 8px; font-size: 11px; line-height: 1.4; font-weight: 400; }
+    .hc { cursor: help; }
     .toast { position: fixed; display: none; pointer-events: none; bottom: 14px; left: 14px; transition: bottom .22s ease; background: var(--bg); border: 1px solid var(--bd); border-radius: 8px; padding: 8px 12px; max-width: 46vw; }
     .bar { position: fixed; display: none; pointer-events: auto; top: 0; left: 0; right: 0; height: 34px; align-items: center; gap: 10px; background: var(--bg); border-bottom: 1px solid var(--bd); padding: 0 10px 0 14px; box-shadow: 0 4px 20px var(--sh-sm); font-weight: 600; transition: left .22s ease, right .22s ease; }
     .bar .muted { color: var(--tx-mut); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
@@ -512,7 +514,24 @@
     // a toast is gone in three seconds, and pasting means leaving the page: the bar holds the reminder
     barPaste.style.display = !n && state.copied ? '' : 'none';
   };
-  shadow.append(hi, hiLabel, ring, panel, crumbs, toast, bar);
+  const tip = mk('tip ui');
+  shadow.append(hi, hiLabel, ring, panel, crumbs, toast, bar, tip);
+  // quick styled tooltip for the hardcoded warning icons (native titles are slow and get
+  // shadowed by the row's own title)
+  const showTip = (g) => {
+    const text = g.dataset.tip; if (!text) return;
+    tip.textContent = text; tip.style.display = 'block';
+    const r = g.getBoundingClientRect(); const tw = tip.offsetWidth; const th = tip.offsetHeight;
+    // stay inside the sidebar when the icon lives there, else inside the viewport
+    const box = panel.contains(g) ? panel.getBoundingClientRect() : { left: 0, right: innerWidth };
+    const left = Math.max(box.left + 8, Math.min(r.left + r.width / 2 - tw / 2, box.right - tw - 8));
+    const top = r.top - th - 6 >= 8 ? r.top - th - 6 : r.bottom + 6;
+    tip.style.left = `${left}px`; tip.style.top = `${top}px`;
+  };
+  const hideTip = () => { tip.style.display = 'none'; };
+  shadow.addEventListener('pointerover', (e) => { const g = e.target.closest && e.target.closest('.hc'); if (g) showTip(g); });
+  shadow.addEventListener('pointerout', (e) => { const g = e.target.closest && e.target.closest('.hc'); if (g && !g.contains(e.relatedTarget)) hideTip(); });
+  shadow.addEventListener('pointerdown', hideTip, true);
   applyTheme();
 
   // Docking: the panel takes real space by pushing the page with an html margin
@@ -1588,7 +1607,7 @@
     const row = mk('chg');
     const what = mk('what');
     const gone = !elx.isConnected;
-    what.innerHTML = `<span class="who">${esc(elLabel(elx))}</span> <b>${esc(c.prop)}</b> ${esc(labelFor(c.from))}<span class="arrow">→</span>${esc(labelFor(c.to))}${c.to.hardcoded ? ' ' + HC_HTML('hardcoded value') : ''}${gone ? ' <span class="muted">(element no longer on the page, will not be sent)</span>' : ''}`;
+    what.innerHTML = `<span class="who">${esc(elLabel(elx))}</span> <b>${esc(c.prop)}</b> ${esc(labelFor(c.from))}<span class="arrow">→</span>${esc(labelFor(c.to))}${c.to.hardcoded ? ' ' + HC_HTML() : ''}${gone ? ' <span class="muted">(element no longer on the page, will not be sent)</span>' : ''}`;
     what.title = `${c.from.primitive} → ${c.to.primitive}${c.to.hardcoded ? ' (hardcoded)' : ''}`;
     if (gone) row.style.opacity = '0.6';
     const x = mk('x', 'button');
@@ -1831,8 +1850,9 @@
   // and the label tints while any of them has a pending change
   // hardcoded marker: a literal with no token behind it
   const HC_SVG = '<svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"><path d="M5 1.5 9 8.5H1z"/><path d="M5 4v2.2" stroke-linecap="round"/></svg>';
-  const hcGlyph = (title = 'Hardcoded value (no token behind it)') => { const g = mk('hc', 'span'); g.innerHTML = HC_SVG; g.title = title; g.setAttribute('aria-label', 'hardcoded'); return g; };
-  const HC_HTML = (title = 'hardcoded value') => `<span class="hc" title="${title}">${HC_SVG}</span>`;
+  const HC_TIP = 'Hardcoded: this value is typed in directly instead of using one of your design tokens. Pick a token from the list to keep it consistent with the rest of the site.';
+  const hcGlyph = (tipText = HC_TIP) => { const g = mk('hc', 'span'); g.innerHTML = HC_SVG; g.dataset.tip = tipText; g.setAttribute('aria-label', tipText); return g; };
+  const HC_HTML = (lead = '') => `<span class="hc" data-tip="${esc(lead ? `${lead}. ${HC_TIP}` : HC_TIP)}" aria-label="hardcoded">${HC_SVG}</span>`;
 
   const row = (label, control, opts = {}) => {
     const r = mk('row');
@@ -2523,7 +2543,7 @@
       const bad = !!set && !set.includes(w);
       inp.classList.toggle('warn', bad);
       inp.title = bad ? `This font has no ${w} weight; it renders as ${renderedWeight(w, set)}` : baseTitle;
-      if (hint) { hint.style.display = bad ? '' : 'none'; hint.title = inp.title; }
+      if (hint) { hint.style.display = bad ? '' : 'none'; hint.dataset.tip = inp.title; }
     };
     const sync = () => {
       let val = null;
