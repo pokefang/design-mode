@@ -26,8 +26,11 @@ const HELP = `claude-design-mode ${pkg.version}
   wait [queueDir] [--timeout M]
                               block until a selection lands in the queue (agent wake watcher);
                               the default queue lives outside the repo, keyed to this project
+  serve --proxy <app-origin> [--port 3850] [--queue dir]
+                              for non-Vite apps (recommended): open the proxy URL instead of the app
+                              and Design Mode is injected into every page, surviving reloads
   serve --app <origin> [--port 3850] [--queue dir]
-                              standalone server for non-Vite apps (one <script> tag)
+                              the same server without the proxy: add one <script> tag to your app by hand
   overlay-path                print the overlay's absolute path (for manual injection)
   skill-path                  print the bundled skill's directory
 `;
@@ -101,9 +104,11 @@ const init = () => {
     say(`  import designMode from 'claude-design-mode/vite'\n  export default defineConfig({ plugins: [designMode(), /* ...your plugins */] })\n`);
     say('Put designMode() first so JSX is stamped before the React plugin compiles it.');
   } else {
-    say('No vite.config found. For any other dev server, run the standalone server alongside it:\n');
-    say(`  npx claude-design-mode serve --app http://localhost:${port || 3000}\n`);
-    say('and add this to your app shell in development only:\n');
+    say('No vite.config found. For any other dev server, run the proxy in front of it:\n');
+    say(`  npx claude-design-mode serve --proxy http://localhost:${port || 3000} --port 3850\n`);
+    say('and open http://localhost:3850 instead of your app. Design Mode is injected into every page,');
+    say('so it survives reloads and navigation. No change to your app is needed.\n');
+    say(`Prefer to edit the app instead? Run \`serve --app http://localhost:${port || 3000}\` and add this to your app shell in development only:\n`);
     say('  <script src="http://localhost:3850/__design-mode/boot.js" referrerpolicy="origin"></script>');
     say('\n(referrerpolicy="origin" matters: it is how the server knows the request is from your app,');
     say('even over https or with a strict referrer policy.)');
@@ -123,9 +128,18 @@ switch (cmd) {
   }
   case 'serve': {
     const { serve } = await import('../src/serve.mjs');
+    const { parseAppOrigin } = await import('../src/proxy.mjs');
     const p = flag('port');
     const q = flag('queue');
-    serve({ port: p && p !== true ? Number(p) : 3850, apps: flagAll('app'), queueDir: q && q !== true ? q : undefined });
+    const px = flag('proxy');
+    const apps = flagAll('app');
+    if (px !== undefined && apps.length) { console.error('use either --proxy or --app, not both'); process.exit(1); }
+    if (px !== undefined && px === true) { console.error('--proxy needs the app origin, for example --proxy http://localhost:3000'); process.exit(1); }
+    let proxy;
+    if (px !== undefined) {
+      try { proxy = parseAppOrigin(px); } catch (e) { console.error(e.message); process.exit(1); }
+    }
+    serve({ port: p && p !== true ? Number(p) : 3850, apps, proxy, queueDir: q && q !== true ? q : undefined });
     break;
   }
   case 'overlay-path': say(overlayPath()); break;

@@ -51,8 +51,20 @@ export default defineConfig({
 
 Start your dev server, press `Cmd+D` (`Ctrl+D` on Windows and Linux), and click anything.
 
-**Not on Vite?** Run the standalone server next to your dev server and add one script tag
-in development:
+**Not on Vite?** Run the proxy in front of your dev server and open the proxy URL instead of
+your app. Design Mode is injected into every page it serves, so it stays on through reloads
+and navigation, and your app needs no changes:
+
+```bash
+npx claude-design-mode serve --proxy http://localhost:3000 --port 3850
+# then open http://localhost:3850
+```
+
+The proxy forwards everything (including HMR WebSockets) to your app and only adds the
+overlay to HTML pages. The same token, Origin and Host checks apply, and the token is only
+written into pages requested on a local host name.
+
+Prefer to touch the app instead? Run `serve --app` and add one script tag in development:
 
 ```bash
 npx claude-design-mode serve --app http://localhost:3000
@@ -93,7 +105,9 @@ stays in your design system's vocabulary rather than freezing a resolved hex or 
 value. Literals with no token behind them are flagged so you can see them.
 
 Every change previews live on the page and collects in the sidebar, where one button ships
-the whole batch and the text box doubles as a note. Drag a number to scrub it, double click
+the whole batch and the text box doubles as a note. When a Claude session is listening
+(`claude-design-mode wait`), edits save on their own a second after you stop, with no button.
+Design Mode and your selection survive a page reload (kept in the tab's session storage). Drag a number to scrub it, double click
 to reset it. There is a light and a dark theme, following your system by default.
 
 ## What it changes in your project
@@ -138,7 +152,8 @@ designMode({ queueDir, allowedHosts, stamp, tokens })
 | Command | What it does |
 | --- | --- |
 | `init [--port N] [--force]` | Project setup, non-destructive and idempotent |
-| `serve --app <origin> [--port 3850] [--queue dir]` | Standalone overlay and endpoint server for non-Vite apps |
+| `serve --proxy <app-origin> [--port 3850] [--queue dir]` | For non-Vite apps: a proxy that injects Design Mode into every page (open the proxy URL) |
+| `serve --app <origin> [--port 3850] [--queue dir]` | The same server without the proxy; the app adds one script tag by hand |
 | `wait [queueDir] [--timeout M]` | Optional: block until a selection lands, so an agent picks edits up without you pasting |
 | `overlay-path` | Absolute path of the overlay, for manual injection into any page |
 | `skill-path` | Where the bundled skill lives |

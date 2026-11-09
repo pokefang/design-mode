@@ -31,7 +31,7 @@
     "claude-design-mode": "bin/cli.mjs"
   },
   "scripts": {
-    "test": "node --test test/cli.test.mjs test/server.test.mjs"
+    "test": "node --test test/cli.test.mjs test/server.test.mjs test/proxy.test.mjs"
   },
   "exports": {
     ".": {

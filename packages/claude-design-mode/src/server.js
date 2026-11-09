@@ -40,6 +40,18 @@ export const isArmed = (queueDir) => {
 };
 
 /**
+ * True when a Host header names this machine (localhost, 127.0.0.1, ::1, *.localhost, or an
+ * explicitly allowed name). The token is only ever handed to such hosts, so a DNS-rebinding
+ * page (evil.example resolving to 127.0.0.1) can neither POST nor read it out of the HTML.
+ */
+export const isLocalHostName = (host, extra = []) => {
+  if (!host) return false;
+  const name = String(host).replace(/:\d+$/, '').replace(/^\[(.*)\]$/, '$1');
+  return name === 'localhost' || name.endsWith('.localhost') || name === '127.0.0.1'
+    || name === '::1' || extra.includes(name);
+};
+
+/**
  * The Design Mode HTTP surface, framework-free so the Vite plugin and the
  * standalone `claude-design-mode serve` command share one implementation.
  *
@@ -76,12 +88,7 @@ export function createHandler(opts) {
     return host ? [`http://${host}`, `https://${host}`] : [];
   };
   const originAllowed = (req, origin) => selfOrigins(req).includes(origin) || extraOrigins.includes(origin);
-  const isLocalHost = (host) => {
-    if (!host) return false;
-    const name = host.replace(/:\d+$/, '').replace(/^\[(.*)\]$/, '$1');
-    return name === 'localhost' || name.endsWith('.localhost') || name === '127.0.0.1'
-      || name === '::1' || extraHosts.includes(name);
-  };
+  const isLocalHost = (host) => isLocalHostName(host, extraHosts);
   const tokenMatches = (sent) => {
     const a = Buffer.from(String(sent || ''));
     const b = Buffer.from(token);

@@ -68,7 +68,8 @@
       try { const t = sessionStorage.getItem('__cdm_theme'); if (t === 'light' || t === 'dark') return t; } catch { /* fine */ }
       try { return matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'; } catch { return 'dark'; }
     })(),
-    armed: false,        // a session is already listening, so submit sends instead of copying
+    armed: false,        // a session is already listening, so edits auto-save and submit sends instead of copying
+    saveStatus: '',      // '' | 'saving' | 'saved' | 'failed': auto-save progress shown in the bar and sidebar header
     copied: false,       // the last submit went to the clipboard and is waiting to be pasted
     lastPrompt: '',
     draft: '',
@@ -99,6 +100,17 @@
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ seq: state.seq, queue: state.queue }));
     } catch { /* storage full: queue lives in memory only */ }
   };
+
+  /* ------------------------------------------- survive reloads (session) --- */
+
+  // Design Mode must not vanish when the page reloads or navigates: whether it was
+  // on, and what was selected, live in sessionStorage (per tab) and are restored on boot.
+  const ACTIVE_KEY = '__cdm_active';
+  const SELECTION_KEY = '__cdm_selection';
+  const storeSet = (k, v) => {
+    try { if (v === null) sessionStorage.removeItem(k); else sessionStorage.setItem(k, v); } catch { /* memory only */ }
+  };
+  const storeGet = (k) => { try { return sessionStorage.getItem(k); } catch { return null; } };
 
   /* ----------------------------------------------------------- UI shell --- */
 
@@ -344,6 +356,7 @@
     .bar { position: fixed; display: none; pointer-events: auto; top: 0; left: 0; right: 0; height: 34px; align-items: center; gap: 10px; background: var(--bg); border-bottom: 1px solid var(--bd); padding: 0 10px 0 14px; box-shadow: 0 4px 20px var(--sh-sm); font-weight: 600; transition: left .22s ease, right .22s ease; }
     .bar .muted { color: var(--tx-mut); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
     .bar .spacer { flex: 1; min-width: 0; }
+    .save-status { flex: none; color: var(--tx-mut); font-weight: 400; font-size: 11px; white-space: nowrap; }
     .bar .btn { flex: none; }
     .bar .paste { flex: none; height: 22px; padding: 0 9px; border-radius: 99px; border: 1px solid var(--paste-bd); background: var(--ac-t15); color: var(--ac-tx); font: inherit; font-weight: 600; }
     .bar .paste:hover { border-color: var(--paste-bd-hi); color: var(--ac-tx-hi); }
@@ -392,6 +405,18 @@
   barSend.title = 'Review the unsent changes, add a note, and send them to Claude';
   barSend.addEventListener('click', () => openCommitModal());
   bar.append(barSend);
+  // Auto-save progress ("Saving...", "Saved"). Claims only that the edit reached the queue, never that code changed.
+  const barSave = mk('save-status', 'span');
+  const headSave = mk('save-status', 'span');
+  const SAVE_WORDS = { saving: 'Saving...', saved: 'Saved', failed: 'Not saved, retrying' };
+  const syncSave = () => {
+    for (const el of [barSave, headSave]) {
+      el.textContent = SAVE_WORDS[state.saveStatus] || '';
+      el.style.display = state.saveStatus ? '' : 'none';
+    }
+  };
+  syncSave();
+  bar.append(barSave);
   // Stays put after a copy, because the next thing the user does is leave this page.
   const barPaste = mk('paste', 'button');
   barPaste.style.display = 'none';
@@ -584,6 +609,38 @@
     }
     return parts.join(' > ');
   };
+
+  // A locator that survives a reload: the source stamp (plus which of its twins this is)
+  // when the element has one, else the CSS path from cssPath().
+  const locatorFor = (target) => {
+    const stamp = target.getAttribute('data-claude-source');
+    const loc = { tag: target.tagName, css: cssPath(target) };
+    if (stamp) {
+      loc.stamp = stamp;
+      loc.idx = [...document.querySelectorAll(`[data-claude-source="${CSS.escape(stamp)}"]`)].indexOf(target);
+    }
+    return loc;
+  };
+  const resolveLocator = (loc) => {
+    if (!loc || typeof loc !== 'object') return null;
+    const ok = (n) => n instanceof Element && n.tagName === loc.tag && !isOurs(n) && n !== document.body && n !== document.documentElement;
+    try {
+      if (typeof loc.stamp === 'string') {
+        const list = [...document.querySelectorAll(`[data-claude-source="${CSS.escape(loc.stamp)}"]`)].filter(ok);
+        const hit = list[loc.idx] || list[0];
+        if (hit) return hit;
+      }
+      if (typeof loc.css === 'string' && loc.css) {
+        const n = loc.css.startsWith('#') ? document.querySelector(loc.css) : document.body.querySelector(`:scope > ${loc.css}`);
+        if (ok(n)) return n;
+      }
+    } catch { /* a selector the new page rejects: treat as not found */ }
+    return null;
+  };
+  const saveSelection = (target) => {
+    try { storeSet(SELECTION_KEY, JSON.stringify(locatorFor(target))); } catch { /* fine */ }
+  };
+  const clearSelection = () => storeSet(SELECTION_KEY, null);
 
   const ownFiber = (n) => {
     for (const k of Object.keys(n)) {
@@ -1208,14 +1265,14 @@
   const pollArmed = async () => {
     const was = state.armed;
     state.armed = (await sessionArmed()) === true;
-    if (state.armed !== was) syncBar();
+    if (state.armed !== was) { syncBar(); if (state.armed) scheduleAutosave(); }
   };
   const watchArmed = (on) => {
     clearInterval(armedTimer);
     armedTimer = null;
     if (!on || !cfg.endpoint) { state.armed = false; return; }
     pollArmed();
-    armedTimer = setInterval(pollArmed, 10000);
+    armedTimer = setInterval(pollArmed, 3000);
   };
 
   const post = async (payload) => {
@@ -1225,6 +1282,7 @@
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-design-mode-token': cfg.token || '' },
         body: JSON.stringify(payload),
+        keepalive: true, // lets an auto-save sent as the page unloads still complete (browsers cap this at 64KB; larger bodies fall back to the retry queue)
       });
       if (res.ok) {
         removeFromQueue(payload.seq);
@@ -1250,7 +1308,7 @@
   // One submit, one outcome, decided before the click so the clipboard write keeps
   // its user gesture: a session already listening gets it directly, everyone else
   // gets a prompt to paste. The queue write underneath is a silent belt-and-braces.
-  const deliver = (payload) => {
+  const deliver = (payload, { quiet = false } = {}) => {
     state.queue.push(payload);
     persist();
     // Tiny signal only: console truncates silently above ~4KB, so never the payload.
@@ -1265,7 +1323,7 @@
       return Promise.resolve(copied ? 'copied' : 'queued');
     }
     return post(payload).then((r) => {
-      if (r === 'sent' && live) { showToast('Sent to Claude. It is working on it now.'); return 'sent'; }
+      if (r === 'sent' && live) { if (!quiet) showToast('Sent to Claude. It is working on it now.'); return 'sent'; }
       if (r === 'stale' && !copied) { showToast('The dev server restarted. Reload the page to reconnect.', 8000); return 'failed'; }
       if (copied) showToast(`Copied. Paste it in Claude and press Enter (${PASTE_KEY}).`);
       else if (r === 'sent') showToast('Sent to Claude.');
@@ -1389,7 +1447,7 @@
     if (state.selectedEl) renderPanel(state.selectedEl, true);
   };
 
-  const commitChanges = (note, scope) => {
+  const commitChanges = (note, scope, opts) => {
     const targets = [];
     const sentEls = [];
     for (const [elx, map] of state.pending) {
@@ -1404,7 +1462,7 @@
         })),
       });
     }
-    if (!targets.length) return;
+    if (!targets.length) return null;
     const entry = { status: 'sending' };
     // kept per element for the preview lift; the shared entry carries delivery status
     state.committed.push(...sentEls.map((elx) => ({ el: elx, changes: [...state.pending.get(elx).values()], entry })));
@@ -1425,7 +1483,36 @@
     for (const elx of sentEls) state.pending.delete(elx); // detached elements keep their unsent edits listed
     renderTray();
     refreshModMarks();
-    deliver(payload).then((r) => { entry.status = r; renderTray(); });
+    return deliver(payload, opts).then((r) => { entry.status = r; renderTray(); return r; });
+  };
+
+  /* ---------------------------------------------------------- auto-save --- */
+
+  // While a session is listening (armed), design edits ship on their own once the
+  // user pauses. Nothing about the loop changes when nobody is listening.
+  const AUTOSAVE_MS = 1000;
+  let autoTimer = 0;
+  let savedTimer = 0;
+  const autosavable = () => state.armed && [...state.pending].some(([elx, m]) => m.size && elx.isConnected);
+  const flushAutosave = () => {
+    clearTimeout(autoTimer);
+    autoTimer = 0;
+    if (!autosavable()) return;
+    clearTimeout(savedTimer);
+    state.saveStatus = 'saving';
+    syncSave();
+    const p = commitChanges('', state.draftScope, { quiet: true });
+    if (!p) { state.saveStatus = ''; syncSave(); return; }
+    p.then((r) => {
+      state.saveStatus = r === 'sent' ? 'saved' : 'failed';
+      syncSave();
+      if (r === 'sent') savedTimer = setTimeout(() => { if (state.saveStatus === 'saved') { state.saveStatus = ''; syncSave(); } }, 4000);
+    });
+  };
+  const scheduleAutosave = () => {
+    clearTimeout(autoTimer);
+    autoTimer = 0;
+    if (autosavable()) autoTimer = setTimeout(flushAutosave, AUTOSAVE_MS);
   };
 
   /* --------------------------------------------------------- changes UI --- */
@@ -1470,6 +1557,7 @@
   const renderTray = () => {
     if (state.refreshSubmit) state.refreshSubmit();
     syncBar();
+    scheduleAutosave();
   };
 
   // A small yes/no box on top of the sidebar, for the two destructive moments
@@ -2335,10 +2423,10 @@
       statusBox.style.display = committed ? '' : 'none';
       if (committed) {
         const statuses = new Set(state.committed.map((c) => (c.entry ? c.entry.status : 'sent')));
-        const word = statuses.has('sending') ? 'Sending to Claude'
+        const word = statuses.has('sending') ? (state.armed ? 'Saving...' : 'Sending to Claude')
           : statuses.has('failed') ? 'Not sent (see message)'
           : statuses.has('copied') ? `Copied, paste in Claude (${PASTE_KEY})`
-          : statuses.has('queued') ? 'Ready for Claude' : 'Sent to Claude';
+          : statuses.has('queued') ? 'Ready for Claude' : (state.armed ? 'Saved' : 'Sent to Claude');
         statusBox.innerHTML = `<span title="Previews stay on the page until Claude applies the edits and the page reloads">${word} · ${committed} previewing</span>`;
         const clear = document.createElement('button');
         clear.textContent = 'Clear previews';
@@ -2437,7 +2525,7 @@
     closeBtn.title = 'Close the sidebar (Esc). Design Mode stays on; Esc again exits';
     closeBtn.setAttribute('aria-label', 'Close the sidebar');
     closeBtn.addEventListener('click', () => closePrompt());
-    btns.append(dockBtn, pickBtn, closeBtn);
+    btns.append(headSave, dockBtn, pickBtn, closeBtn);
     title.append(btns);
     const sub = mk('p-sub');
     sub.textContent = chain.slice(1).join(' ← ');
@@ -2682,6 +2770,8 @@
   /* ---------------------------------------------------------- selection --- */
 
   const closePrompt = () => {
+    flushAutosave();
+    clearSelection();
     state.bcEl = null;
     state.refreshSubmit = null;
     closeDropdown();
@@ -2707,6 +2797,7 @@
     box(target, ring, 1);
     renderPanel(target, keepScroll);
     watchSelected(target);
+    saveSelection(target);
     syncBar();
     syncCursor();
   };
@@ -2894,6 +2985,7 @@
 
   // The last Esc (or the bar's esc, or the hotkey) with unsent edits on the page: ask before dropping them
   const requestDisable = () => {
+    if (state.armed) flushAutosave(); // a listening session gets the edits instead of a discard prompt
     const n = pendingCount();
     if (!n) { api.disable(); return; }
     confirmBox({
@@ -2906,7 +2998,10 @@
   document.addEventListener('pointermove', onMove, { capture: true, passive: true });
   for (const type of SUPPRESSED) document.addEventListener(type, onSuppressed, { capture: true });
   document.addEventListener('keydown', onKey, { capture: true });
+  window.addEventListener('pagehide', flushAutosave);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushAutosave(); });
   window.addEventListener('beforeunload', (e) => {
+    if (state.armed) flushAutosave();
     if (!pendingCount()) return;
     e.preventDefault();
     e.returnValue = ''; // unsent design edits would be lost
@@ -2923,6 +3018,7 @@
     enable() {
       ensureMounted();
       state.active = true;
+      storeSet(ACTIVE_KEY, '1');
       watchArmed(true);
       syncBar();
       applyDock(); // the bar claims its strip the moment Design Mode turns on
@@ -2932,6 +3028,7 @@
       closeConfirm();
       if (pendingCount()) discardAll();
       state.active = false;
+      storeSet(ACTIVE_KEY, null);
       watchArmed(false);
       state.copied = false;
       state.picking = false;
@@ -2952,6 +3049,8 @@
       return q;
     },
     applied() {
+      state.saveStatus = '';
+      syncSave();
       clearPreviews();
       showToast('Previews cleared; the page now shows the committed code.');
     },
@@ -2973,5 +3072,27 @@
   setInterval(() => { api.heartbeat = Date.now(); }, 1000);
   window.__claudeDesign = api;
   if (cfg.endpoint && state.queue.length) scheduleRetry();
+
+  // Boot: if Design Mode was on before this load, switch it back on, and re-select what was
+  // selected once the page has rendered it (SPAs paint late, so retry for a few seconds). Quietly.
+  if (storeGet(ACTIVE_KEY) === '1') {
+    const restore = () => {
+      api.enable();
+      let loc = null;
+      try { loc = JSON.parse(storeGet(SELECTION_KEY) || 'null'); } catch { loc = null; }
+      if (!loc) return;
+      let tries = 0;
+      const attempt = () => {
+        if (!state.active || state.promptOpen) return; // the user already moved on
+        const el = resolveLocator(loc);
+        if (el) { openPrompt(el); return; }
+        if (++tries < 15) setTimeout(attempt, 200);
+        else clearSelection();
+      };
+      attempt();
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', restore, { once: true });
+    else restore();
+  }
   console.log('[design-mode] overlay ready', cfg.endpoint ? '(plugin endpoint)' : '(session mode)');
 })();

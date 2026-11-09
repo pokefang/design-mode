@@ -39,8 +39,16 @@ token-name patterns, e.g. `{ color: /^--brand-/, spacing: /^--space-/ }`; the
 overlay discovers tokens from your CSS on its own, this just overrides the
 grouping when your names are unusual).
 
-**Not on Vite** (Next, Remix, Rails, a static site)? Run the standalone server
-next to your dev server and add one script tag in development:
+**Not on Vite** (Next, Remix, Rails, a static site)? Run the proxy in front of your dev
+server and open the proxy URL instead of your app. Design Mode is injected into every
+page, survives reloads, and needs no change to your app:
+
+```bash
+npx claude-design-mode serve --proxy http://localhost:3000 --port 3850
+# open http://localhost:3850
+```
+
+Or add one script tag in development and run `serve --app`:
 
 ```bash
 npx claude-design-mode serve --app http://localhost:3000

@@ -1,12 +1,19 @@
 import http from 'node:http';
 import path from 'node:path';
+import { serveProxy } from './proxy.mjs';
 import { createHandler, newToken, configScript, defaultQueueDir, OVERLAY_ROUTE, SELECTION_ROUTE } from './server.js';
 
 const BOOT_ROUTE = '/__design-mode/boot.js';
 
 /**
- * Standalone Design Mode server for apps that are not on Vite (Next, Remix,
- * Rails, Django, a static site...). The app adds one script tag in development:
+ * Standalone Design Mode server for apps that are not on Vite. Two modes:
+ *
+ *   --proxy <app-origin>   (recommended) open the proxy URL instead of the app; the overlay
+ *                          is injected into every HTML page automatically, see proxy.mjs
+ *   --app <origin>         the app adds one script tag by hand, described below
+ *
+ * Script-tag mode (Next, Remix, Rails, Django, a static site...): the app adds one
+ * script tag in development:
  *
  *   <script src="http://localhost:3850/__design-mode/boot.js" referrerpolicy="origin"></script>
  *
@@ -23,7 +30,8 @@ const BOOT_ROUTE = '/__design-mode/boot.js';
  * only when the request's Referer/Origin is an allowed origin, and the
  * selection endpoint accepts POSTs only from those origins.
  */
-export function serve({ port = 3850, apps = [], queueDir, root = process.cwd(), log = console.log } = {}) {
+export function serve({ port = 3850, apps = [], proxy, queueDir, root = process.cwd(), log = console.log } = {}) {
+  if (proxy) return serveProxy({ proxy, port, queueDir, root, log });
   const token = newToken();
   const apps_ = apps.map((a) => a.replace(/\/$/, ''));
   const dir = queueDir ? path.resolve(root, queueDir) : defaultQueueDir(root);
