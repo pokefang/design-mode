@@ -117,8 +117,11 @@ Value fields are built for quick tuning:
   loads (read from `document.fonts`), and shows a hardcoded hint if you type one it lacks.
 - **Steppers** (small - / + buttons that appear on hover or focus) repeat while held.
 - **Colour chips** open a picker: your colour tokens as chips, then a custom picker (saturation and
-  value square, hue, alpha, hex or rgba text, and an eyedropper where the browser has one). Tokens
-  write `var(--token)`; custom colours write a literal and are flagged hardcoded.
+  value square, hue, alpha, a HEX / RGB / HSL / HSB / OKLCH switcher for the text field, and an
+  eyedropper where the browser has one). Tokens write `var(--token)`; custom colours write a literal
+  in the chosen format (HSB is display only and writes hex) and are flagged hardcoded. Under a colour
+  field, the resolved value shows on a line below only when the source writes it as rgb()/rgba();
+  otherwise it shows as hex inside the field, on the right.
 - **Radius** has one linked field with a Full (pill) button, and a toggle for four per-corner inputs.
 - **Border** has a side selector (all, top, right, bottom, left), width, style and colour.
 

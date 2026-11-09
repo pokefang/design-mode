@@ -349,6 +349,7 @@
     .cp-bar i { top: 50%; }
     .cp-row { display: grid; grid-template-columns: 1fr auto; gap: 6px; align-items: center; }
     .cp-row .ctl { font-size: 11px; }
+    .cp-fmt button { font-size: 10px; letter-spacing: 0.02em; }
     .cp-eye { width: 26px; height: 26px; padding: 0; border: 1px solid var(--bd-ctl); border-radius: 6px; background: transparent; color: var(--tx-mut); display: flex; align-items: center; justify-content: center; }
     .cp-eye:hover { color: var(--tx); }
     .cp-eye svg { width: 14px; height: 14px; display: block; }
@@ -356,7 +357,8 @@
     .unit .u { color: var(--tx-mut); font-size: 10px; white-space: nowrap; }
     .swatched { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; min-width: 0; }
     .swatched > .sw { position: absolute; left: 6px; top: 5px; z-index: 1; }
-    .swatched .ctl { padding-left: 28px; }
+    .swatched .ctl { padding-left: 28px; text-overflow: ellipsis; }
+    .swatched > .hexv { position: absolute; right: 8px; top: 0; height: 26px; display: flex; align-items: center; color: var(--tx-mut); font-size: 10.5px; pointer-events: none; user-select: none; }
     .swatched > .prim { grid-column: 1; padding-left: 28px; }
     .sw { width: 16px; height: 16px; border-radius: 4px; border: 1px solid var(--bd-ctl); }
     .prim { color: var(--tx-mut); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; grid-column: 2; margin-top: -1px; }
@@ -1018,7 +1020,7 @@
           const rv = cs.getPropertyValue(name).trim();
           if ((d && !KW.test(d)) || (rv && !KW.test(rv))) { picked = name; def = d; resolved = rv; break; }
         }
-        chain.push({ name: picked, value: def || resolved || '(unset)' });
+        chain.push({ name: picked, value: def || resolved || '(unset)', raw: !!def });
         if (!def || !VAR_RE.test(def)) break;
         cur = def;
       }
@@ -1031,7 +1033,7 @@
       else if (layer === 'base') status = 'reset';
       else if (layer === 'utilities') status = selector && selector.includes('\\[') ? 'hardcoded' : 'utility';
       else status = 'hardcoded';
-      out[prop] = { computed, authored, from, selector, layer, chain, status };
+      out[prop] = { computed, authored, from, selector, layer, chain, status, viaShorthand };
     }
     return out;
   };
@@ -2293,6 +2295,65 @@
   };
   const hex2 = (n) => n.toString(16).padStart(2, '0');
   const rgbaCss = ({ r, g, b, a }) => (a >= 1 ? `#${hex2(r)}${hex2(g)}${hex2(b)}` : `rgba(${r}, ${g}, ${b}, ${fmtNum(a)})`);
+  // hex as the page would write it: 6 digits, 8 only when translucent
+  const hexOf = ({ r, g, b, a }) => `#${hex2(r)}${hex2(g)}${hex2(b)}${a < 1 ? hex2(Math.round(a * 255)) : ''}`;
+  const rgbToHsl = ({ r, g, b }) => {
+    r /= 255; g /= 255; b /= 255;
+    const mx = Math.max(r, g, b); const mn = Math.min(r, g, b); const d = mx - mn; const l = (mx + mn) / 2;
+    const s = d ? d / (1 - Math.abs(2 * l - 1)) : 0;
+    return { h: rgbToHsv({ r: r * 255, g: g * 255, b: b * 255 }).h, s, l };
+  };
+  const rgbToOklch = ({ r, g, b }) => {
+    const lin = (v) => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+    const R = lin(r); const G = lin(g); const B = lin(b);
+    const l = Math.cbrt(0.4122214708 * R + 0.5363325363 * G + 0.0514459929 * B);
+    const m = Math.cbrt(0.2119034982 * R + 0.6806995451 * G + 0.1073969566 * B);
+    const sx = Math.cbrt(0.0883024619 * R + 0.2817188376 * G + 0.6299787005 * B);
+    const L = 0.2104542553 * l + 0.793617785 * m - 0.0040720468 * sx;
+    const A = 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * sx;
+    const Bk = 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * sx;
+    const C = Math.hypot(A, Bk);
+    let h = (Math.atan2(Bk, A) * 180) / Math.PI;
+    if (h < 0) h += 360;
+    return { L, C, h: C < 0.0004 ? 0 : h };
+  };
+  // the picker's formats. rgb/hsl follow the page's own comma or space syntax (`modern`);
+  // hsb is not CSS, so it is a display format only and writes hex
+  const COLOR_FORMATS = ['hex', 'rgb', 'hsl', 'hsb', 'oklch'];
+  const fmtColor = (format, c, modern) => {
+    const a = c.a < 1 ? fmtNum(c.a) : null;
+    const r1 = (n, k = 1) => Math.round(n * 10 ** k) / 10 ** k;
+    if (format === 'rgb') {
+      if (modern) return `rgb(${c.r} ${c.g} ${c.b}${a ? ` / ${a}` : ''})`;
+      return a ? `rgba(${c.r}, ${c.g}, ${c.b}, ${a})` : `rgb(${c.r}, ${c.g}, ${c.b})`;
+    }
+    if (format === 'hsl' || format === 'hsb') {
+      let h; let s; let x;
+      if (format === 'hsl') { const o = rgbToHsl(c); h = o.h; s = o.s; x = o.l; } else { const o = rgbToHsv(c); h = o.h; s = o.s; x = o.v; }
+      const t = `${r1(h, 0)}, ${r1(s * 100, 0)}%, ${r1(x * 100, 0)}%`;
+      if (format === 'hsb') return `hsb(${t}${a ? `, ${a}` : ''})`;
+      if (modern) return `hsl(${r1(h, 0)} ${r1(s * 100, 0)}% ${r1(x * 100, 0)}%${a ? ` / ${a}` : ''})`;
+      return a ? `hsla(${t}, ${a})` : `hsl(${t})`;
+    }
+    if (format === 'oklch') { const o = rgbToOklch(c); return `oklch(${r1(o.L, 3)} ${r1(o.C, 3)} ${r1(o.h, 1)}${a ? ` / ${a}` : ''})`; }
+    return hexOf(c);
+  };
+  // how a colour is written in the source: hex, rgb, hsl, oklch, or something else ('')
+  const colorSyntax = (raw) => {
+    const v = String(raw || '').trim();
+    if (/^#[0-9a-f]{3,8}$/i.test(v)) return 'hex';
+    if (/^rgba?\(/i.test(v) && !/var\(/.test(v)) return 'rgb';
+    if (/^hsla?\(/i.test(v)) return 'hsl';
+    if (/^oklch\(/i.test(v)) return 'oklch';
+    return '';
+  };
+  // hsb(h, s%, b%) / hsv(...), commas or spaces, optional alpha (0..1 or a percent)
+  const parseHsb = (v) => {
+    const m = /^hs[bv]a?\(?\s*(-?[\d.]+)(?:deg)?[\s,]+([\d.]+)%?[\s,]+([\d.]+)%?(?:\s*[,/]\s*([\d.]+)(%?))?\s*\)?$/i.exec(String(v).trim());
+    if (!m) return null;
+    const a = m[4] === undefined ? 1 : (m[5] ? parseFloat(m[4]) / 100 : parseFloat(m[4]));
+    return { h: ((parseFloat(m[1]) % 360) + 360) % 360, s: Math.min(1, parseFloat(m[2]) / 100), v: Math.min(1, parseFloat(m[3]) / 100), a: Math.min(1, Math.max(0, a)) };
+  };
 
   // Colour picker popover: the page's colour tokens as chips, then a custom picker
   // (saturation/value square, hue, alpha, text, eyedropper). Chips call onToken(name);
@@ -2315,7 +2376,7 @@
     el.addEventListener('pointerup', end);
     el.addEventListener('pointercancel', end);
   };
-  const openColorPicker = ({ anchor, tokens, currentToken, currentCss, onToken, onCustom }) => {
+  const openColorPicker = ({ anchor, tokens, currentToken, currentCss, authored, onToken, onCustom }) => {
     closeColorPicker();
     closeDropdown();
     const el = mk('cp ui');
@@ -2353,9 +2414,39 @@
     const hue = mk('cp-bar'); const hueDot = mk('', 'i'); hue.append(hueDot);
     hue.style.background = 'linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)';
     const alpha = mk('cp-bar'); const alphaDot = mk('', 'i'); alpha.append(alphaDot);
+    // text format: the user's last explicit choice this session, else how the current value is
+    // written in the source, else hex. rgb and hsl follow the comma or space syntax the page's
+    // own tokens use (comma when unsure)
+    let format = (() => { try { const f = sessionStorage.getItem('__cdm_cfmt'); return COLOR_FORMATS.includes(f) ? f : null; } catch { return null; } })()
+      || (colorSyntax(authored) === 'rgb' ? 'rgb' : colorSyntax(authored) || 'hex');
+    const modern = (() => {
+      let legacy = 0; let spaced = 0;
+      for (const v of [authored, ...tokens.map((t) => t.value)]) {
+        const m = /^(?:rgba?|hsla?)\(([^)]*)\)/i.exec(String(v || '').trim());
+        if (m) { if (m[1].includes(',')) legacy++; else spaced++; }
+      }
+      return spaced > legacy;
+    })();
+    const fmtRow = mk('seg cp-fmt');
+    fmtRow.setAttribute('data-cdm-field', '');
+    fmtRow.setAttribute('role', 'group');
+    fmtRow.setAttribute('aria-label', 'Colour format');
+    const fmtBtns = COLOR_FORMATS.map((f) => {
+      const b = mk('', 'button');
+      b.type = 'button'; b.dataset.v = f; b.textContent = f.toUpperCase(); b.setAttribute('data-cdm-field', '');
+      b.title = f === 'hsb' ? 'HSB (shown as hsb(), written as hex)' : f.toUpperCase();
+      b.addEventListener('click', () => {
+        format = f;
+        try { sessionStorage.setItem('__cdm_cfmt', f); } catch { /* fine */ }
+        paintFmt(); paint();
+      });
+      fmtRow.append(b);
+      return b;
+    });
+    const paintFmt = () => fmtBtns.forEach((b) => { b.classList.toggle('on', b.dataset.v === format); b.setAttribute('aria-pressed', String(b.dataset.v === format)); });
     const row = mk('cp-row');
     const txt = mk('ctl', 'input');
-    txt.type = 'text'; txt.autocomplete = 'off'; txt.spellcheck = false; txt.setAttribute('data-cdm-field', ''); txt.title = 'Hex, rgb(), hsl() or a colour name';
+    txt.type = 'text'; txt.autocomplete = 'off'; txt.spellcheck = false; txt.setAttribute('data-cdm-field', ''); txt.title = 'Hex, rgb(), hsl(), oklch(), hsb() or a colour name';
     row.append(txt);
     if (window.EyeDropper) {
       const eye = mk('cp-eye', 'button');
@@ -2370,7 +2461,7 @@
       });
       row.append(eye);
     } else row.style.gridTemplateColumns = '1fr';
-    el.append(ch, sv, hue, alpha, row);
+    el.append(ch, sv, hue, alpha, fmtRow, row);
 
     const cur = () => ({ ...hsvToRgb(col.h, col.s, col.v), a: col.a });
     const paint = (skipText) => {
@@ -2381,9 +2472,9 @@
       const c = cur();
       alpha.style.background = `linear-gradient(to right, rgba(${c.r},${c.g},${c.b},0), rgb(${c.r},${c.g},${c.b})), repeating-conic-gradient(#8884 0 25%, transparent 0 50%) 0 0 / 8px 8px`;
       alphaDot.style.left = `${col.a * 100}%`;
-      if (!skipText) txt.value = rgbaCss(c);
+      if (!skipText) txt.value = fmtColor(format, c, modern);
     };
-    const emit = () => onCustom(rgbaCss(cur()));
+    const emit = () => onCustom(fmtColor(format === 'hsb' ? 'hex' : format, cur(), modern));
     const syncCustom = (c, doEmit) => { Object.assign(col, rgbToHsv(c), { a: c.a }); paint(); if (doEmit) emit(); };
     dragSurface(sv, (x, y) => { col.s = x; col.v = 1 - y; paint(); emit(); });
     dragSurface(hue, (x) => { col.h = Math.min(359.99, x * 360); paint(); emit(); });
@@ -2395,12 +2486,15 @@
     });
     txt.addEventListener('change', () => {
       const v = txt.value.trim();
-      if (!v || !supports('color', v)) { txt.classList.add('bad'); setTimeout(() => txt.classList.remove('bad'), 600); txt.value = rgbaCss(cur()); return; }
-      const c = toRGBA(v);
-      Object.assign(col, rgbToHsv(c), { a: c.a });
-      paint(true);
-      onCustom(/^#[0-9a-f]{3,8}$/i.test(v) ? v.toLowerCase() : rgbaCss(c));
+      const hb = parseHsb(v);
+      if (!v || (!hb && !supports('color', v))) { txt.classList.add('bad'); setTimeout(() => txt.classList.remove('bad'), 600); txt.value = fmtColor(format, cur(), modern); return; }
+      if (hb) Object.assign(col, hb);
+      else { const c = toRGBA(v); Object.assign(col, rgbToHsv(c), { a: c.a }); }
+      paint();
+      // the literal written follows the chosen format; a typed hex stays as typed in hex mode
+      if (format === 'hex' && /^#[0-9a-f]{3,8}$/i.test(v)) onCustom(v.toLowerCase()); else emit();
     });
+    paintFmt();
     paint();
 
     panel.append(el);
@@ -2471,12 +2565,47 @@
       const m = /^#(.)\1(.)\2(.)\3$/.exec(x);
       return m ? `#${m[1]}${m[2]}${m[3]}` : x;
     };
-    const setPrim = (value) => {
+    // Where a colour's resolved value shows depends on how the source writes it. Written in
+    // rgb()/rgba(), the line under the field repeats that text. Written any other way (hex,
+    // name, hsl, oklch) or unknown, the value shows as hex inside the field, on the right.
+    // `raw` is the authored text (never the computed rgb), '' when unknown.
+    let rawNow = '';
+    const hexv = swatch ? mk('hexv', 'span') : null;
+    const setPrim = (raw) => {
       const el = wrap.querySelector('.prim');
       if (!el) return;
-      const show = value && inp.value !== 'none' && norm(value) !== norm(inp.value) && norm(value) !== norm(inp.value.replace(/^--/, ''));
-      el.textContent = show ? value : '';
-      el.style.display = show ? '' : 'none';
+      rawNow = String(raw || '').trim();
+      const text = inp.value.trim();
+      const moot = !text || text === 'none' || text === 'transparent';
+      const asRgb = colorSyntax(rawNow) === 'rgb';
+      const showLine = asRgb && !moot && norm(rawNow) !== norm(text) && norm(rawNow) !== norm(text.replace(/^--/, ''));
+      el.textContent = showLine ? rawNow : '';
+      el.style.display = showLine ? '' : 'none';
+      let hx = '';
+      if (!asRgb && !moot && !/^#[0-9a-f]{3,8}$/i.test(text)) {
+        const css = rawNow && !/var\(/.test(rawNow) ? rawNow : getComputedStyle(live()).getPropertyValue(rprop).trim();
+        hx = hexOf(toRGBA(css));
+      }
+      hexv.textContent = hx;
+      hexv.style.display = hx ? '' : 'none';
+      inp.style.paddingRight = hx ? `calc(${hx.length}ch + 14px)` : '';
+    };
+    // the end of a token's var() chain as written, '' when it is not a plain declaration
+    const rawOfVar = (name) => {
+      let cur = idx[name] || '';
+      let guard = 0;
+      while (guard++ < 6 && VAR_RE.test(cur) && bareVar(cur)) cur = idx[VAR_RE.exec(cur)[1]] || '';
+      return cur && !VAR_RE.test(cur) ? cur : '';
+    };
+    // what the field's current value is written as: a token's last declaration, an authored literal
+    const authoredRaw = () => {
+      // a field that shows a known token reads that token's own declaration, even when the
+      // value arrived through a shorthand like border: 1px solid var(--ring)
+      const shown = `--${String(current || '').replace(/^--/, '')}`;
+      if (idx[shown] !== undefined) { const r = rawOfVar(shown); if (r) return r; }
+      if (!t || t.viaShorthand) return '';
+      if (t.chain.length) { const last = t.chain[t.chain.length - 1]; return bareVar(t.authored) && last.raw && !VAR_RE.test(last.value) ? last.value : ''; }
+      return t.status === 'keyword' ? '' : t.authored;
     };
     const inp = mk('ctl', 'input');
     inp.type = 'text';
@@ -2587,7 +2716,7 @@
         applyPreview(prop, `var(${name})`, { token: name, primitive: prim });
         if (sw) sw.style.background = prim;
         inp.value = name.replace(/^--/, '');
-        setPrim(prim);
+        setPrim(rawOfVar(name));
       } else if (special && special[raw]) {
         applyPreview(prop, special[raw].css, { label: raw, primitive: special[raw].css, system: true });
       } else {
@@ -2597,6 +2726,7 @@
         if (!supports(prop, lit)) { inp.value = current; inp.classList.add('bad'); setTimeout(() => inp.classList.remove('bad'), 600); return; }
         applyPreview(prop, lit, { primitive: lit });
         if (sw) sw.style.background = lit;
+        inp.value = lit;
         setPrim(lit);
         inp.value = lit;
       }
@@ -2686,13 +2816,15 @@
           tokens,
           currentToken: curToken(),
           currentCss: getComputedStyle(live()).getPropertyValue(rprop),
+          authored: rawNow,
           onToken: (n) => commit(n.replace(/^--/, '')),
           onCustom: (css) => commit(css),
         });
       });
       const prim = mk('prim');
-      wrap.append(prim);
-      setPrim(primitiveOf(t, cs.getPropertyValue(rprop).trim()));
+      wrap.append(hexv, prim);
+      // a pending edit is already on the page: its literal, or its token's declaration
+      setPrim(pv ? (pv.to.token ? rawOfVar(pv.to.token) : pv.to.css) : authoredRaw());
     }
     return { node: wrap, hardcoded: !!t && t.status === 'hardcoded', tip: tipFor(t), inp, sync, val: startVal, write: writeNum, setText: (txt) => { inp.value = txt; current = txt; sync(); } };
   };
