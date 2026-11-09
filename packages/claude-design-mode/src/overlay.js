@@ -103,6 +103,7 @@
   /* ----------------------------------------------------------- UI shell --- */
 
   const Z = 2147483000;
+  const CRUMBS_H = 34; // height of the full-width breadcrumb bar along the bottom of the viewport
   const host = document.createElement('div');
   host.setAttribute('data-cdm-ui', '');
   host.style.cssText = `position:fixed;inset:0;z-index:${Z};pointer-events:none;`;
@@ -212,8 +213,9 @@
     .btn.ghost { background: transparent; }
     .btn.sm { height: 22px; padding: 0 8px; font-size: 10.5px; }
     .btn.full { width: 100%; margin-top: 8px; }
-    .panel { position: fixed; top: 0; bottom: 0; right: 0; width: 300px; display: flex; flex-direction: column; pointer-events: none; visibility: hidden; transform: translateX(100%); transition: transform .22s ease, visibility 0s linear .22s; background: var(--bg); border-left: 1px solid var(--bd); box-shadow: -8px 0 32px var(--sh-md); overflow: hidden; }
-    .panel.open { pointer-events: auto; visibility: visible; transform: none; transition: transform .22s ease, visibility 0s; }
+    .panel { position: fixed; top: 0; bottom: 0; right: 0; width: 300px; display: flex; flex-direction: column; pointer-events: none; visibility: hidden; transform: translateX(100%); transition: transform .22s ease, bottom .22s ease, visibility 0s linear .22s; background: var(--bg); border-left: 1px solid var(--bd); box-shadow: -8px 0 32px var(--sh-md); overflow: hidden; }
+    .panel.open { pointer-events: auto; visibility: visible; transform: none; transition: transform .22s ease, bottom .22s ease, visibility 0s; }
+    .panel.open.with-crumbs { bottom: ${CRUMBS_H}px; }
     .panel.left { right: auto; left: 0; border-left: none; border-right: 1px solid var(--bd); box-shadow: 8px 0 32px var(--sh-md); transform: translateX(-100%); }
     .panel.left.open { transform: none; }
     .panel.dragging { transition: none; opacity: 0.92; }
@@ -338,7 +340,7 @@
     .tray-foot select.ctl { width: auto; height: 26px; flex: 1; min-width: 0; }
     .tray-status { color: var(--tx-mut); font-size: 10.5px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
     .tray-status button { background: none; border: none; color: var(--ac-tx); padding: 0; font-size: 10.5px; }
-    .toast { position: fixed; display: none; pointer-events: none; bottom: 14px; left: 14px; background: var(--bg); border: 1px solid var(--bd); border-radius: 8px; padding: 8px 12px; max-width: 46vw; }
+    .toast { position: fixed; display: none; pointer-events: none; bottom: 14px; left: 14px; transition: bottom .22s ease; background: var(--bg); border: 1px solid var(--bd); border-radius: 8px; padding: 8px 12px; max-width: 46vw; }
     .bar { position: fixed; display: none; pointer-events: auto; top: 0; left: 0; right: 0; height: 34px; align-items: center; gap: 10px; background: var(--bg); border-bottom: 1px solid var(--bd); padding: 0 10px 0 14px; box-shadow: 0 4px 20px var(--sh-sm); font-weight: 600; transition: left .22s ease, right .22s ease; }
     .bar .muted { color: var(--tx-mut); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
     .bar .spacer { flex: 1; min-width: 0; }
@@ -350,14 +352,14 @@
     .kbtn:hover { color: var(--tx); border-color: var(--bd-hi); }
     .kbtn svg { width: 12px; height: 12px; display: block; }
     .kbtn.on { color: var(--ac); border-color: var(--ac); background: var(--ac-t15); }
-    .crumbs { display: none; align-items: center; gap: 1px; border-top: 1px solid var(--bd); background: var(--bg-sunk); padding: 7px 10px; white-space: nowrap; overflow-x: auto; overflow-y: hidden; font-size: 11px; scrollbar-width: none; flex: none; }
+    .crumbs { position: fixed; left: 0; right: 0; bottom: 0; height: ${CRUMBS_H}px; box-sizing: border-box; z-index: 3; display: flex; align-items: center; gap: 1px; border-top: 1px solid var(--bd); background: var(--bg-sunk); padding: 0 10px; white-space: nowrap; overflow-x: auto; overflow-y: hidden; font-size: 11px; scrollbar-width: none; cursor: grab; pointer-events: none; visibility: hidden; opacity: 0; transform: translateY(100%); transition: transform .22s ease, opacity .22s ease, visibility 0s linear .22s; }
+    .crumbs.open { pointer-events: auto; visibility: visible; opacity: 1; transform: none; transition: transform .22s ease, opacity .22s ease, visibility 0s; }
     .crumbs::-webkit-scrollbar { display: none; }
-    .crumbs { position: relative; cursor: grab; }
     .crumbs.dragging { cursor: grabbing; user-select: none; }
     .crumbs.dragging button { pointer-events: none; }
     .crumbs button.kids { color: var(--tx-mut); padding: 3px 7px; min-width: 22px; }
     .crumbs button.kids:hover, .crumbs button.kids.on { color: var(--tx); background: var(--ctl); }
-    .menu { position: absolute; right: 8px; z-index: 2; background: var(--ctl); border: 1px solid var(--bd-ctl); border-radius: 8px; box-shadow: 0 10px 30px var(--sh-lg); padding: 4px; min-width: 170px; max-width: 250px; max-height: 45%; overflow: auto; }
+    .menu { position: fixed; z-index: 4; background: var(--ctl); border: 1px solid var(--bd-ctl); border-radius: 8px; box-shadow: 0 10px 30px var(--sh-lg); padding: 4px; min-width: 170px; max-width: 250px; max-height: 45vh; overflow: auto; }
     .menu .mh { color: var(--tx-mut); font-size: 10px; padding: 3px 8px 5px; }
     .menu button { display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 8px; padding: 5px 8px; border: none; background: none; color: var(--tx); border-radius: 5px; text-align: left; min-width: 0; }
     .menu button:hover { background: var(--bd-ctl); }
@@ -379,7 +381,7 @@
   const panelHead = mk('panel-head');
   const panelScroll = mk('panel-scroll');
   const crumbs = mk('crumbs ui');
-  panel.append(panelHead, panelScroll, crumbs);
+  panel.append(panelHead, panelScroll);
   const toast = mk('toast ui');
   const bar = mk('bar ui');
   bar.innerHTML = '<span>Design Mode</span><span class="muted" title="Click an element to select it. Alt+click selects its parent">click an element</span><span class="spacer"></span>';
@@ -438,7 +440,7 @@
     // a toast is gone in three seconds, and pasting means leaving the page: the bar holds the reminder
     barPaste.style.display = !n && state.copied ? '' : 'none';
   };
-  shadow.append(hi, hiLabel, ring, panel, toast, bar);
+  shadow.append(hi, hiLabel, ring, panel, crumbs, toast, bar);
   applyTheme();
 
   // Docking: the panel takes real space by pushing the page with an html margin
@@ -449,7 +451,7 @@
   let savedHtml = null;
   const applyDock = () => {
     const open = state.promptOpen;
-    if (savedHtml === null) savedHtml = { l: htmlStyle.marginLeft, r: htmlStyle.marginRight, top: htmlStyle.marginTop, t: htmlStyle.transition };
+    if (savedHtml === null) savedHtml = { l: htmlStyle.marginLeft, r: htmlStyle.marginRight, top: htmlStyle.marginTop, b: htmlStyle.marginBottom, t: htmlStyle.transition };
     // margin-top stays out of this list on purpose: transitioning the root element's
     // top margin makes Chrome drop the value entirely (computed stays 0), so the bar's
     // strip is applied instantly while the dock margins still glide
@@ -459,8 +461,13 @@
     // the status bar keeps its own strip of the page instead of floating over the app
     // the sidebar replaces the bar rather than sitting next to it
     htmlStyle.marginTop = state.active && !open ? `${BAR_H}px` : savedHtml.top;
+    // the breadcrumb bar owns the bottom strip of the viewport (instant, like margin-top)
+    htmlStyle.marginBottom = open ? `${CRUMBS_H}px` : savedHtml.b;
     panel.classList.toggle('left', state.dock === 'left');
     panel.classList.toggle('open', open);
+    panel.classList.toggle('with-crumbs', open);
+    crumbs.classList.toggle('open', open);
+    toast.style.bottom = open ? `${CRUMBS_H + 14}px` : '14px';
     toast.style.left = open && state.dock === 'left' ? `${DOCK_W + 14}px` : '14px';
     // keep the ring and hover box glued while the page reflows
     const t0 = performance.now();
@@ -2588,10 +2595,12 @@
       childMenu.append(b);
     });
     if (kids.length > 14) { const more = mk('more'); more.textContent = `+${kids.length - 14} more (click one to descend, then open its children)`; childMenu.append(more); }
-    panel.append(childMenu);
-    const pr = panel.getBoundingClientRect();
+    shadow.append(childMenu);
+    // opens upward from the bottom bar, aligned to the kids button and kept inside the viewport
     const cr = crumbs.getBoundingClientRect();
-    childMenu.style.bottom = `${pr.bottom - cr.top + 4}px`;
+    const ar = childMenuAnchor ? childMenuAnchor.getBoundingClientRect() : cr;
+    childMenu.style.bottom = `${innerHeight - cr.top + 4}px`;
+    childMenu.style.left = `${Math.max(8, Math.min(ar.left, innerWidth - childMenu.offsetWidth - 8))}px`;
     if (childMenuAnchor) childMenuAnchor.classList.add('on');
   };
   // click-and-drag scrolls the strip; a real drag swallows the click that follows
@@ -2666,7 +2675,6 @@
         }
       }
     });
-    crumbs.style.display = 'flex';
     if (cur) crumbs.scrollLeft = Math.max(0, cur.offsetLeft - crumbs.clientWidth / 2 + cur.offsetWidth / 2);
     else crumbs.scrollLeft = crumbs.scrollWidth;
   };
@@ -2688,7 +2696,6 @@
     syncBar();
     syncCursor();
     ring.style.display = 'none';
-    crumbs.style.display = 'none';
   };
 
   const openPrompt = (target, { keepScroll = false } = {}) => {
