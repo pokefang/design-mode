@@ -320,15 +320,7 @@
     .fs { display: grid; gap: 2px; min-width: 0; }
     .fs .hc { position: absolute; right: 42px; top: 8px; }
     .ctl.warn { border-color: var(--warn); }
-    .srow { display: grid; grid-template-columns: 1fr; align-items: center; gap: 6px; min-width: 0; }
-    .srow.has-full { grid-template-columns: 1fr auto; }
-    .rng { -webkit-appearance: none; appearance: none; width: 100%; height: 14px; margin: 0; padding: 0; background: transparent; outline: none; cursor: pointer; display: block; }
-    .rng::-webkit-slider-runnable-track { height: 3px; border-radius: 2px; background: linear-gradient(to right, var(--ac) var(--p, 0%), var(--bd-ctl) var(--p, 0%)); }
-    .rng::-webkit-slider-thumb { -webkit-appearance: none; width: 10px; height: 10px; margin-top: -3.5px; border-radius: 50%; background: var(--tx); border: 0; }
-    .rng:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px var(--ac-t18); }
-    .rng::-moz-range-track { height: 3px; border-radius: 2px; background: var(--bd-ctl); }
-    .rng::-moz-range-progress { height: 3px; border-radius: 2px; background: var(--ac); }
-    .rng::-moz-range-thumb { width: 10px; height: 10px; border-radius: 50%; background: var(--tx); border: 0; }
+    .srow { display: flex; justify-content: flex-end; min-width: 0; }
     .minibtn { height: 20px; padding: 0 7px; border: 1px solid var(--bd-ctl); border-radius: 5px; background: transparent; color: var(--tx-mut); font-size: 10.5px; }
     .minibtn:hover { color: var(--tx); }
     .minibtn.on { background: var(--seg-on); color: var(--tx); border-color: transparent; }
@@ -2253,19 +2245,6 @@
   const nudgeStepper = (inp, { nudge, step = 1, bigStep = 10, altStep = step }) =>
     withStepper(inp, (dir, mod) => { nudge(dir * (mod === 'shift' ? bigStep : mod === 'alt' ? altStep : step), mod === 'shift'); });
 
-  // thin range input; set(v) moves it without firing onInput
-  const slider = ({ min, max, step, onInput, title }) => {
-    const r = mk('rng', 'input');
-    r.type = 'range';
-    r.min = String(min); r.max = String(max); r.step = String(step);
-    if (title) r.title = title;
-    r.setAttribute('data-cdm-field', '');
-    const paint = () => { const lo = parseFloat(r.min); const hi = parseFloat(r.max); r.style.setProperty('--p', `${hi > lo ? ((parseFloat(r.value) - lo) / (hi - lo)) * 100 : 0}%`); };
-    r.addEventListener('input', () => { paint(); onInput(parseFloat(r.value)); });
-    r.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Escape') { e.preventDefault(); r.blur(); } });
-    return { node: r, set: (v) => { r.value = String(v); paint(); }, range: (lo, hi, st) => { r.min = String(lo); r.max = String(hi); r.step = String(st); paint(); } };
-  };
-
   /* ---------------------------------------------------------- colour maths --- */
 
   let colorCtx = null;
@@ -2529,23 +2508,16 @@
       return v;
     };
     const matchToken = (v) => names.find((n) => { const p = parseVal(resolveVar(n, live())); return p && sameVal(p, v, live()); }) || null;
-    let sliderApi = null; let srow = null; let fullBtn = null; let hint = null; let before = null;
-    const isFull = () => inp.value === 'full' || parseFloat(getComputedStyle(live()).borderTopLeftRadius) >= 9999;
-    const updateSlider = (v) => {
-      if (!sliderApi) return;
-      if (isWeight) {
-        const wl = weightsFor(live());
-        srow.style.display = wl.length > 1 ? '' : 'none';
-        sliderApi.range(0, wl.length - 1, 1);
-        sliderApi.set(wl.indexOf(nearestIn(wl, v.n)));
-        return;
-      }
-      if (sl.unit === '' ? v.u !== '' : v.u === '%') { srow.style.display = 'none'; return; }
-      srow.style.display = '';
-      const full = !!sl.full && isFull();
-      sliderApi.set(full ? sl.max : Math.min(sl.max, Math.max(sl.min, sl.unit === '' ? v.n : valPx(v, live()))));
-      if (fullBtn) fullBtn.classList.toggle('on', full);
+    let fullBtn = null; let hint = null; let before = null;
+    // fully rounded once the radius reaches half the short side (999px, 9999px and 50vh pills all count)
+    const isFull = () => {
+      if (inp.value === 'full') return true;
+      const el = live(); const r = el.getBoundingClientRect();
+      const rad = parseFloat(getComputedStyle(el).borderTopLeftRadius);
+      return rad >= 9999 || (r.width > 0 && r.height > 0 && rad >= Math.min(r.width, r.height) / 2);
     };
+    // the Full (pill) toggle mirrors whether the radius is currently fully rounded
+    const updateSlider = () => { if (fullBtn) fullBtn.classList.toggle('on', !!(sl && sl.full) && isFull()); };
     const weightHint = (w) => {
       const set = weightSet(live());
       const bad = !!set && !set.includes(w);
@@ -2670,22 +2642,15 @@
       wrap.className = 'fs';
       if (isWeight) { hint = hcGlyph('This font has no such weight'); hint.style.display = 'none'; fld.append(hint); }
       wrap.append(fld);
-      if (sl) {
-        srow = mk('srow' + (sl.full ? ' has-full' : ''));
-        const wl = isWeight ? weightsFor(live()) : null;
-        sliderApi = slider(isWeight
-          ? { min: 0, max: wl.length - 1, step: 1, title: 'Weight', onInput: (i) => writeNum({ n: weightsFor(live())[i], u: '' }) }
-          : { min: sl.min, max: sl.max, step: sl.step, title: sl.title || '', onInput: (v) => writeNum({ n: v, u: sl.unit }) });
-        srow.append(sliderApi.node);
-        if (sl.full) {
-          fullBtn = mk('minibtn', 'button');
-          fullBtn.type = 'button';
-          fullBtn.textContent = 'Full';
-          fullBtn.title = 'Fully rounded (pill). Click again to go back';
-          fullBtn.addEventListener('mousedown', (e) => e.preventDefault());
-          fullBtn.addEventListener('click', () => { if (isFull()) writeNum(before || { n: 8, u: 'px' }); else { before = startVal(); commit('full'); } });
-          srow.append(fullBtn);
-        }
+      if (sl && sl.full) {
+        const srow = mk('srow');
+        fullBtn = mk('minibtn', 'button');
+        fullBtn.type = 'button';
+        fullBtn.textContent = 'Full';
+        fullBtn.title = 'Fully rounded (pill). Click again to go back';
+        fullBtn.addEventListener('mousedown', (e) => e.preventDefault());
+        fullBtn.addEventListener('click', () => { if (isFull()) writeNum(before || { n: 8, u: 'px' }); else { before = startVal(); commit('full'); } });
+        srow.append(fullBtn);
         wrap.append(srow);
       }
       updateSlider(startVal());
@@ -3246,12 +3211,10 @@
     opacityIn.type = 'text'; opacityIn.inputMode = 'numeric';
     const opStart = () => { const o = parseFloat(getComputedStyle(state.selectedEl).opacity); return Math.round((Number.isFinite(o) ? o : 1) * 1000) / 10; };
     opacityIn.value = String(opStart());
-    const opSlider = slider({ min: 0, max: 100, step: 1, title: 'Opacity', onInput: (v) => setOpacity(v) });
     const setOpacity = (vIn) => {
       const v = Math.min(100, Math.max(0, Math.round(vIn * 10) / 10)); // Option steps by a tenth of a percent
       applyPreview('opacity', fmtNum(v / 100), { label: `${fmtNum(v)}%`, primitive: fmtNum(v / 100), system: true });
       opacityIn.value = fmtNum(v);
-      opSlider.set(v);
     };
     let opBase = 100;
     opacityIn.addEventListener('pointerdown', () => { opBase = opStart(); }, true);
@@ -3261,7 +3224,7 @@
       onClick: () => { opacityIn.focus(); opacityIn.select(); openNumericOptions(opacityIn, [0, 5, 10, 20, 25, 30, 40, 50, 60, 70, 75, 80, 90, 95, 100].map((v) => ({ value: v, label: `${v}%` })), opStart(), setOpacity, 'No preset. Enter keeps the value (0 to 100)'); },
     });
     const opNudge = (by) => setOpacity((parseFloat(opacityIn.value) || 0) + by);
-    numericKeys(opacityIn, { reset: () => { opacityIn.value = String(opStart()); opSlider.set(opStart()); }, step: 1, bigStep: 10, altStep: 0.1, nudge: opNudge });
+    numericKeys(opacityIn, { reset: () => { opacityIn.value = String(opStart()); }, step: 1, bigStep: 10, altStep: 0.1, nudge: opNudge });
     dblclickReset(opacityIn, 'opacity');
     opacityIn.addEventListener('input', () => { if (dd && dd.anchor === opacityIn) dd.setFilter(opacityIn.value); });
     opacityIn.addEventListener('change', () => {
@@ -3269,12 +3232,10 @@
       if (opacityIn.value.trim() === '' || Number.isNaN(parsed)) { opacityIn.value = String(opStart()); return; }
       setOpacity(parsed);
     });
-    opSlider.set(opStart());
     const opWrap = mk('fs');
     const opTop = mk('unit'); const pct = mk('u', 'span'); pct.textContent = '%';
     opTop.append(nudgeStepper(opacityIn, { nudge: opNudge, step: 1, bigStep: 10, altStep: 0.1 }), pct);
-    const opRow = mk('srow'); opRow.append(opSlider.node);
-    opWrap.append(opTop, opRow);
+    opWrap.append(opTop);
     const appearance = [
       tk('Fill', { prop: 'background-color', key: 'color', swatch: true }),
       radiusRow(),

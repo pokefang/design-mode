@@ -116,11 +116,10 @@ Value fields are built for quick tuning:
   line-height move by tenths). Font weight steps between the weights the element's font really
   loads (read from `document.fonts`), and shows a hardcoded hint if you type one it lacks.
 - **Steppers** (small - / + buttons that appear on hover or focus) repeat while held.
-- **Sliders** sit under opacity, font weight, line height, radius (with a Full pill button) and border width.
 - **Colour chips** open a picker: your colour tokens as chips, then a custom picker (saturation and
   value square, hue, alpha, hex or rgba text, and an eyedropper where the browser has one). Tokens
   write `var(--token)`; custom colours write a literal and are flagged hardcoded.
-- **Radius** has one linked field with a slider, and a toggle for four per-corner inputs.
+- **Radius** has one linked field with a Full (pill) button, and a toggle for four per-corner inputs.
 - **Border** has a side selector (all, top, right, bottom, left), width, style and colour.
 
 Selecting: hold **Option** while hovering to reach elements the pointer cannot hit (overlays,
