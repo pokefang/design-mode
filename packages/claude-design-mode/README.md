@@ -122,7 +122,7 @@ Value fields are built for quick tuning:
   in the chosen format (HSB is display only and writes hex) and are flagged hardcoded. Under a colour
   field, the resolved value shows on a line below only when the source writes it as rgb()/rgba();
   otherwise it shows as hex inside the field, on the right.
-- **Radius** has one linked field with a Full (pill) button, and a toggle for four per-corner inputs.
+- **Radius** has one linked field and a toggle for four per-corner inputs.
 - **Border** has a side selector (all, top, right, bottom, left), width, style and colour.
 
 Selecting: hold **Option** while hovering to reach elements the pointer cannot hit (overlays,

@@ -214,7 +214,6 @@
     .ring { position: fixed; display: none; pointer-events: none; border: 1.5px solid var(--ac); box-shadow: 0 0 0 3px var(--ac-t18); border-radius: 2px; }
     .ta { display: block; width: 100%; background: var(--ctl); color: var(--tx); border: 1px solid transparent; border-radius: 6px; padding: 7px 9px; font: inherit; resize: vertical; outline: none; min-height: 54px; }
     .ta:focus { border-color: var(--ac); }
-    .sec-h .kbd { color: var(--tx-mut); font-weight: 400; font-size: 10px; margin-left: auto; margin-right: 8px; }
     .scopes { display: flex; gap: 5px; margin-top: 8px; flex-wrap: wrap; }
     .scope { font-size: 10.5px; padding: 3px 9px; border-radius: 99px; border: 1px solid var(--bd-ctl); background: transparent; color: var(--tx); }
     .scope.on { border-color: var(--ac); background: var(--ac-t18); }
@@ -248,6 +247,9 @@
     .p-src:hover { color: var(--tx); }
     .p-classes { color: var(--tx-mut); font-size: 10.5px; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .flag { color: var(--warn); font-size: 10.5px; margin-top: 5px; display: flex; align-items: center; gap: 4px; }
+    .flag-fix { margin-left: auto; flex: none; background: none; border: 0; padding: 0; color: var(--ac-tx); font: inherit; font-weight: 600; cursor: pointer; white-space: nowrap; }
+    .flag-fix:hover { text-decoration: underline; }
+    .flag-fix:disabled { color: var(--tx-mut); cursor: default; text-decoration: none; }
     .sec { border-top: 1px solid var(--bd-soft); margin-top: 10px; padding-top: 8px; }
     .sec-h { display: flex; align-items: center; justify-content: space-between; font-weight: 600; font-size: 11.5px; margin-bottom: 6px; cursor: pointer; user-select: none; }
     .sec-h .chev { color: var(--tx-mut); font-size: 10px; transition: transform .12s; }
@@ -320,10 +322,6 @@
     .fs { display: grid; gap: 2px; min-width: 0; }
     .fs .hc { position: absolute; right: 42px; top: 8px; }
     .ctl.warn { border-color: var(--warn); }
-    .srow { display: flex; justify-content: flex-end; min-width: 0; }
-    .minibtn { height: 20px; padding: 0 7px; border: 1px solid var(--bd-ctl); border-radius: 5px; background: transparent; color: var(--tx-mut); font-size: 10.5px; }
-    .minibtn:hover { color: var(--tx); }
-    .minibtn.on { background: var(--seg-on); color: var(--tx); border-color: transparent; }
     .rc-top { display: grid; grid-template-columns: 1fr auto; gap: 4px; align-items: start; min-width: 0; }
     .tgl { width: 26px; height: 26px; padding: 0; border: 1px solid transparent; border-radius: 6px; background: var(--ctl); color: var(--tx-mut); display: flex; align-items: center; justify-content: center; }
     .tgl:hover { border-color: var(--bd-ctl); color: var(--tx); }
@@ -2529,7 +2527,7 @@
   // readProp (computed property to read), onChange({ inp, val }) after any write.
   const NUM_KEYS = new Set(['fontSize', 'fontWeight', 'lineHeight', 'tracking', 'radius', 'borderWidth']);
   const sideNone = (cs, sd) => cs.getPropertyValue(`border-${sd}-style`) === 'none' || parseFloat(cs.getPropertyValue(`border-${sd}-width`)) === 0;
-  const tokenInput = ({ prop, key, swatch, special, slider: sl, names: nameOverride, readProp, onChange }) => {
+  const tokenInput = ({ prop, key, swatch, special, names: nameOverride, readProp, onChange }) => {
     const rprop = readProp || prop;
     const t = state.traces[prop];
     const names = nameOverride || (tokenCatalog()[key] || []);
@@ -2657,16 +2655,7 @@
       return v;
     };
     const matchToken = (v) => names.find((n) => { const p = parseVal(resolveVar(n, live())); return p && sameVal(p, v, live()); }) || null;
-    let fullBtn = null; let hint = null; let before = null;
-    // fully rounded once the radius reaches half the short side (999px, 9999px and 50vh pills all count)
-    const isFull = () => {
-      if (inp.value === 'full') return true;
-      const el = live(); const r = el.getBoundingClientRect();
-      const rad = parseFloat(getComputedStyle(el).borderTopLeftRadius);
-      return rad >= 9999 || (r.width > 0 && r.height > 0 && rad >= Math.min(r.width, r.height) / 2);
-    };
-    // the Full (pill) toggle mirrors whether the radius is currently fully rounded
-    const updateSlider = () => { if (fullBtn) fullBtn.classList.toggle('on', !!(sl && sl.full) && isFull()); };
+    let hint = null;
     const weightHint = (w) => {
       const set = weightSet(live());
       const bad = !!set && !set.includes(w);
@@ -2678,7 +2667,6 @@
       let val = null;
       if (numeric) {
         val = startVal();
-        updateSlider(val);
         if (isWeight) weightHint(val.n);
       }
       if (onChange) onChange({ inp, val });
@@ -2792,18 +2780,6 @@
       wrap.className = 'fs';
       if (isWeight) { hint = hcGlyph('This font has no such weight'); hint.style.display = 'none'; fld.append(hint); }
       wrap.append(fld);
-      if (sl && sl.full) {
-        const srow = mk('srow');
-        fullBtn = mk('minibtn', 'button');
-        fullBtn.type = 'button';
-        fullBtn.textContent = 'Full';
-        fullBtn.title = 'Fully rounded (pill). Click again to go back';
-        fullBtn.addEventListener('mousedown', (e) => e.preventDefault());
-        fullBtn.addEventListener('click', () => { if (isFull()) writeNum(before || { n: 8, u: 'px' }); else { before = startVal(); commit('full'); } });
-        srow.append(fullBtn);
-        wrap.append(srow);
-      }
-      updateSlider(startVal());
       if (isWeight) weightHint(startVal().n);
     } else wrap.append(inp);
     if (swatch) {
@@ -2933,7 +2909,7 @@
       prop: 'border-radius',
       key: 'radius',
       special: { full: { css: 'calc(infinity * 1px)' }, none: { css: '0px' } },
-      slider: { min: 0, max: 48, step: 1, unit: 'px', full: true, title: 'Radius' },
+      slider: { min: 0, max: 48, step: 1, unit: 'px', title: 'Radius' },
       onChange: () => paintCorners(),
     });
     const writeCorners = (vals) => {
@@ -3102,7 +3078,7 @@
   const promptSection = () => {
     const s = mk('sec prompt' + (state.promptExpanded ? '' : ' closed'));
     const h = mk('sec-h');
-    h.innerHTML = '<span>Ask Claude</span><button class="hcount" type="button"></button><span class="kbd">&#8629; to open</span><span class="chev">&#9660;</span>';
+    h.innerHTML = '<span>Ask Claude</span><button class="hcount" type="button"></button><span class="chev">&#9660;</span>';
     const hCount = h.querySelector('.hcount');
     const body = mk('sec-body');
     const ta = mk('ta', 'textarea');
@@ -3199,12 +3175,10 @@
     const setOpen = (open) => {
       state.promptExpanded = open;
       s.classList.toggle('closed', !open);
-      h.querySelector('.kbd').style.display = open ? 'none' : '';
       if (open) setTimeout(() => ta.focus(), 0);
     };
     h.addEventListener('click', () => setOpen(!state.promptExpanded));
     if (pendingCount() && !state.promptExpanded) { state.promptExpanded = true; s.classList.remove('closed'); }
-    h.querySelector('.kbd').style.display = state.promptExpanded ? 'none' : '';
     refresh();
     state.promptOpenSection = () => setOpen(true);
     state.promptFocus = () => { setOpen(true); };
@@ -3238,6 +3212,71 @@
       hiLabel.style.display = 'none';
       state.hoverEl = null;
     }
+  };
+
+  // Every issue the sidebar flags on an element, as one instruction for Claude: hardcoded
+  // values with their closest design token, plus fonts that lack the weight in use.
+  const fixInstruction = (target, T) => {
+    const px = (v) => { const m = /^(-?[\d.]+)(px|rem|em)?$/.exec(String(v || '').trim()); if (!m) return null; const n = parseFloat(m[1]); return m[2] === 'rem' || m[2] === 'em' ? n * rootFontPx() : n; };
+    let cx = null;
+    const hex = (v) => { try { cx = cx || document.createElement('canvas').getContext('2d'); cx.fillStyle = '#000'; cx.fillStyle = v; return cx.fillStyle; } catch { return null; } };
+    const cat = tokenCatalog();
+    const seen = new Set();
+    const parts = [];
+    for (const [prop, x] of Object.entries(T)) {
+      if (x.status !== 'hardcoded') continue;
+      // only values with a control in the sidebar, and never keywords or zero
+      if (!(FAMILY_OF[prop] || /^(padding|margin)(-|$)/.test(prop) || /^(row-|column-)?gap$/.test(prop) || /^border(-[a-z]+)?-width$/.test(prop))) continue;
+      const lit = String(x.authored || x.computed || '').trim();
+      if (!lit || /^(left|right|center|start|end|inherit|initial|unset|none|normal|auto|currentcolor|transparent)$/i.test(lit) || /^-?0*\.?0+(px|rem|em|%)?$/.test(lit)) continue;
+      const group = prop.replace(/^(padding|margin)(-.*)?$/, '$1');
+      if (seen.has(group)) continue;
+      seen.add(group);
+      const shown = group !== prop ? group : prop;
+      // padding and margin read as one shorthand (how it is written, else top right bottom left),
+      // never a mix of the shorthand, logical and physical longhands
+      const sides = (g) => {
+        const el = state.selectedEl; const cs = el ? getComputedStyle(el) : null;
+        const [t, r, b, l] = ['top', 'right', 'bottom', 'left'].map((k) => (cs && cs.getPropertyValue(`${g}-${k}`)) || (T[`${g}-${k}`] && T[`${g}-${k}`].computed) || '0px');
+        // shortest equivalent shorthand, like CSS writes it
+        if (r === l) { if (t === b) return t === r ? t : `${t} ${r}`; return `${t} ${r} ${b}`; }
+        return `${t} ${r} ${b} ${l}`;
+      };
+      const value = group !== prop ? sides(group) : (x.authored || x.computed);
+      const fam = FAMILY_OF[prop] || (group === 'padding' || group === 'margin' || /^(row-|column-)?gap$/.test(prop) ? 'spacing' : null);
+      const names = fam ? cat[fam] || [] : [];
+      const want = x.authored || x.computed;
+      let best = null; let exact = false;
+      if (fam === 'color') {
+        const h = hex(x.computed);
+        const n = names.find((nm) => hex(resolveVar(nm, target)) === h);
+        if (n) { best = n; exact = true; }
+      } else if (fam === 'fontFamily' || fam === 'shadow') {
+        const n = names.find((nm) => resolveVar(nm, target).replace(/\s+/g, '') === String(want).replace(/\s+/g, ''));
+        if (n) { best = n; exact = true; }
+      } else if (names.length) {
+        const w = px(want) !== null ? px(want) : px(x.computed);
+        if (w !== null) {
+          let bd = Infinity;
+          for (const nm of names) { const t = px(resolveVar(nm, target)); if (t !== null && Math.abs(t - w) < bd) { bd = Math.abs(t - w); best = nm; } }
+          if (best !== null) {
+            const tol = Math.max(1, Math.abs(w) * 0.15);
+            if (bd < 1e-6) exact = true; else if (bd > tol) best = null;
+          }
+        }
+      }
+      const tv = best ? resolveVar(best, target) : '';
+      parts.push(`${shown} ${value}${best ? ` (${exact ? 'matching' : 'closest'} token: ${best} ${tv})` : ' (no matching token, leave it or suggest a new token)'}`);
+    }
+    const others = [];
+    const set = weightSet(target);
+    const w = parseFloat(getComputedStyle(target).fontWeight);
+    if (set && Number.isFinite(w) && !set.includes(w)) others.push(`font-weight ${w}: this font has no ${w} weight, it renders as ${renderedWeight(w, set)}`);
+    if (!parts.length && !others.length) return '';
+    let text = `Fix the design issues on the selected element (${elLabel(target)}) in the source.`;
+    if (parts.length) text += ` Replace hardcoded values with design tokens where a token fits: ${parts.join(', ')}.`;
+    if (others.length) text += ` Also fix: ${others.join('; ')}.`;
+    return text + ' Change the component or stylesheet that owns each value, not inline overrides.';
   };
 
   const renderPanel = (target, keepScroll = false) => {
@@ -3305,6 +3344,23 @@
       const f = mk('flag');
       f.append(hcGlyph(), ` ${hardcoded} hardcoded value${hardcoded > 1 ? 's' : ''} on this element`);
       f.title = 'Values written as literals, with no design token behind them';
+      const fix = mk('flag-fix', 'button');
+      fix.type = 'button';
+      fix.textContent = 'Fix with Claude';
+      fix.title = 'Ask Claude to fix every issue on this element in the source';
+      fix.addEventListener('click', () => {
+        if (fix.disabled) return;
+        const text = fixInstruction(target, state.traces || T);
+        if (!text) { showToast('Nothing to fix on this element.'); return; }
+        fix.disabled = true;
+        fix.textContent = state.armed ? 'Saving...' : 'Sending...';
+        const done = (r) => {
+          fix.textContent = r === 'sent' ? 'Saved' : r === 'copied' ? 'Copied' : r === 'failed' ? 'Not sent' : 'Ready';
+          setTimeout(() => { if (fix.isConnected) { fix.disabled = false; fix.textContent = 'Fix with Claude'; } }, 2500);
+        };
+        deliver(buildPayload(target, text, 'auto')).then(done, () => done('failed'));
+      });
+      f.append(fix);
       panelScroll.append(f);
     }
 
