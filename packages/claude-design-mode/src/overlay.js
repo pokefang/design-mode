@@ -247,9 +247,8 @@
     .p-src:hover { color: var(--tx); }
     .p-classes { color: var(--tx-mut); font-size: 10.5px; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .flag { color: var(--warn); font-size: 10.5px; margin-top: 5px; display: flex; align-items: center; gap: 4px; }
-    .flag-fix { margin-left: auto; flex: none; background: none; border: 0; padding: 0; color: var(--ac-tx); font: inherit; font-weight: 600; cursor: pointer; white-space: nowrap; }
-    .flag-fix:hover { text-decoration: underline; }
-    .flag-fix:disabled { color: var(--tx-mut); cursor: default; text-decoration: none; }
+    .flag-fix { margin-left: auto; min-width: 44px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+    .flag-fix:disabled { color: var(--tx-mut); cursor: default; }
     .sec { border-top: 1px solid var(--bd-soft); margin-top: 10px; padding-top: 8px; }
     .sec-h { display: flex; align-items: center; justify-content: space-between; font-weight: 600; font-size: 11.5px; margin-bottom: 6px; cursor: pointer; user-select: none; }
     .sec-h .chev { color: var(--tx-mut); font-size: 10px; transition: transform .12s; }
@@ -3344,19 +3343,19 @@
       const f = mk('flag');
       f.append(hcGlyph(), ` ${hardcoded} hardcoded value${hardcoded > 1 ? 's' : ''} on this element`);
       f.title = 'Values written as literals, with no design token behind them';
-      const fix = mk('flag-fix', 'button');
+      const fix = mk('btn sm flag-fix', 'button');
       fix.type = 'button';
-      fix.textContent = 'Fix with Claude';
+      fix.textContent = 'Fix';
       fix.title = 'Ask Claude to fix every issue on this element in the source';
       fix.addEventListener('click', () => {
         if (fix.disabled) return;
         const text = fixInstruction(target, state.traces || T);
         if (!text) { showToast('Nothing to fix on this element.'); return; }
         fix.disabled = true;
-        fix.textContent = state.armed ? 'Saving...' : 'Sending...';
+        fix.textContent = 'Sending';
         const done = (r) => {
-          fix.textContent = r === 'sent' ? 'Saved' : r === 'copied' ? 'Copied' : r === 'failed' ? 'Not sent' : 'Ready';
-          setTimeout(() => { if (fix.isConnected) { fix.disabled = false; fix.textContent = 'Fix with Claude'; } }, 2500);
+          fix.textContent = r === 'sent' ? 'Sent' : r === 'copied' ? 'Copied' : r === 'failed' ? 'Failed' : 'Ready';
+          setTimeout(() => { if (fix.isConnected) { fix.disabled = false; fix.textContent = 'Fix'; } }, 2500);
         };
         deliver(buildPayload(target, text, 'auto')).then(done, () => done('failed'));
       });
