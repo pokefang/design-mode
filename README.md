@@ -111,7 +111,7 @@ a "Paste in Claude" reminder until you do. If a session is already listening the
 same button reads "Send N changes to Claude" and delivers it directly.
 
 While Design Mode is on and nothing is selected, a status bar sits in its own
-strip across the top of the page, so it never covers your app; it hands the
+strip along the bottom of the page, so it never covers your app; it hands the
 space back when the sidebar opens. It carries the submit button and a light and
 dark toggle that follows your system by default. Esc closes the sidebar, Esc
 again exits Design Mode, asking first if anything is unsent.

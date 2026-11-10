@@ -401,7 +401,7 @@
     .tip { position: fixed; display: none; pointer-events: none; z-index: 5; max-width: 230px; background: var(--bg); color: var(--tx); border: 1px solid var(--bd-ctl); border-radius: 6px; box-shadow: 0 8px 24px var(--sh-md); padding: 6px 8px; font-size: 11px; line-height: 1.4; font-weight: 400; }
     .hc { cursor: help; }
     .toast { position: fixed; display: none; pointer-events: none; bottom: 14px; left: 14px; transition: bottom .22s ease; background: var(--bg); border: 1px solid var(--bd); border-radius: 8px; padding: 8px 12px; max-width: 46vw; }
-    .bar { position: fixed; display: none; pointer-events: auto; top: 0; left: 0; right: 0; height: 34px; align-items: center; gap: 10px; background: var(--bg); border-bottom: 1px solid var(--bd); padding: 0 10px 0 14px; box-shadow: 0 4px 20px var(--sh-sm); font-weight: 600; transition: left .22s ease, right .22s ease; }
+    .bar { position: fixed; display: none; pointer-events: auto; bottom: 0; left: 0; right: 0; height: 34px; align-items: center; gap: 10px; background: var(--bg); border-top: 1px solid var(--bd); padding: 0 10px 0 14px; box-shadow: 0 -4px 20px var(--sh-sm); font-weight: 600; transition: left .22s ease, right .22s ease; }
     .bar .muted { color: var(--tx-mut); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
     .bar .spacer { flex: 1; min-width: 0; }
     .save-status { flex: none; color: var(--tx-mut); font-weight: 400; font-size: 11px; white-space: nowrap; }
@@ -548,16 +548,15 @@
     htmlStyle.transition = open ? 'margin-left .22s ease, margin-right .22s ease' : savedHtml.t;
     htmlStyle.marginLeft = open && state.dock === 'left' ? `${DOCK_W}px` : savedHtml.l;
     htmlStyle.marginRight = open && state.dock === 'right' ? `${DOCK_W}px` : savedHtml.r;
-    // the status bar keeps its own strip of the page instead of floating over the app
-    // the sidebar replaces the bar rather than sitting next to it
-    htmlStyle.marginTop = state.active && !open ? `${BAR_H}px` : savedHtml.top;
-    // the breadcrumb bar owns the bottom strip of the viewport (instant, like margin-top)
-    htmlStyle.marginBottom = open ? `${CRUMBS_H}px` : savedHtml.b;
+    // the bottom strip belongs to the status bar while nothing is selected and to the
+    // breadcrumb bar once the sidebar opens; either way the page keeps it free
+    // (applied instantly: transitioning the root element's margins makes Chrome drop them)
+    htmlStyle.marginBottom = open ? `${CRUMBS_H}px` : state.active ? `${BAR_H}px` : savedHtml.b;
     panel.classList.toggle('left', state.dock === 'left');
     panel.classList.toggle('open', open);
     panel.classList.toggle('with-crumbs', open);
     crumbs.classList.toggle('open', open);
-    toast.style.bottom = open ? `${CRUMBS_H + 14}px` : '14px';
+    toast.style.bottom = open ? `${CRUMBS_H + 14}px` : state.active ? `${BAR_H + 14}px` : '14px';
     toast.style.left = open && state.dock === 'left' ? `${DOCK_W + 14}px` : '14px';
     // keep the ring and hover box glued while the page reflows
     const t0 = performance.now();
@@ -3676,7 +3675,7 @@
     if (inspecting() && state.hoverEl && state.hoverEl.isConnected) {
       const r = box(state.hoverEl, hi);
       hiLabel.style.left = `${Math.max(4, r.left)}px`;
-      hiLabel.style.top = `${Math.max(state.active ? BAR_H + 4 : 4, r.top - 24)}px`;
+      hiLabel.style.top = `${Math.max(4, r.top - 24)}px`;
     }
   };
   const onScrollOrResize = () => {
@@ -3778,7 +3777,7 @@
     hiLabel.textContent = `${chain[0] ? chain[0] + ' · ' : ''}${t.tagName.toLowerCase()}${t.classList[0] ? '.' + t.classList[0] : ''} · ${Math.round(r.width)}×${Math.round(r.height)}`;
     hiLabel.style.display = 'block';
     hiLabel.style.left = `${Math.max(4, r.left)}px`;
-    hiLabel.style.top = `${Math.max(state.active ? BAR_H + 4 : 4, r.top - 24)}px`;
+    hiLabel.style.top = `${Math.max(4, r.top - 24)}px`;
   };
 
   const SUPPRESSED = ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'];
